@@ -1,0 +1,6 @@
+{
+    "sqltools.useNodeRuntime": true,
+    "dataworkspace.excludedProjects": [
+        "Altanwir/Altanwir.sqlproj"
+    ]
+}

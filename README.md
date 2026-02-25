@@ -15,3 +15,6 @@ Data Engineering learning project
 - deleted rows and used 'as of' to time travel (this is amazing)
 - poked in parquet files and _delta_logs to see how it works
 - spark is cool
+- adding sqlproj for the lols after connecting to fabric from vs code
+    - also slight rearrange of folder
+- duckdb is cool

@@ -1,0 +1,1 @@
+select * from azReviews limit 10;

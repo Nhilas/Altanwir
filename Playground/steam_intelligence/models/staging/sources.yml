@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: localSteam
+    schema: main
+    tables:
+      - name: reviews
+        config:
+          external_location: "{{ var('localSteam_reviews_path') }}"
+          format: csv
+      - name: games
+        config:
+          external_location: "{{ var('localSteam_games_path') }}"
+          format: csv

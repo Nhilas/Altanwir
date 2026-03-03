@@ -1,13 +1,22 @@
-with rawGames as (
-    select *
-    from {{ source('localSteam', 'games') }}
+{% set game_columns = range(38) %}
+
+with source_data as (
+    {% if target=='prod' %}
+        select
+        {% for i in game_columns %}
+            _c{{ i }} as column{{ '%02d' | format(i) }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+        from {{ source('fabricSteam', 'games') }}
+    {% else %}
+        select * from {{ source('localSteam', 'games') }}
+    {% endif %}
 )
 
 , renamed as (
     select
         column00 as gameId
         , column01 as gameName
-        , column02 as releaseDate
+        , cast(try_strptime(column02, '%b %d, %Y') as date) as releaseDate
         , column03 as estimatedOwners
         , column04 as peakCCU
         , column05 as requiredAge
@@ -29,7 +38,10 @@ with rawGames as (
         , column35 as categories
         , column36 as genres
         , column37 as tags
-    from rawGames
+    from source_data
+    {% if var("release_date", none) is not none %}
+        where cast(try_strptime(column02, '%b %d, %Y') as date) >= cast('{{ var("release_date") }}' as date)
+    {% endif %}            
 )
 
 , splitted as (

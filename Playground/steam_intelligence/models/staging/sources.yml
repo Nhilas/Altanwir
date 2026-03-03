@@ -6,9 +6,17 @@ sources:
     tables:
       - name: reviews
         config:
-          external_location: "{{ var('localSteam_reviews_path') }}"
-          format: csv
+          meta:
+            external_location: "{{ var('localSteam_reviews_path') }}"
+            format: csv
       - name: games
         config:
-          external_location: "{{ var('localSteam_games_path') }}"
-          format: csv
+          meta:
+            external_location: "{{ var('localSteam_games_path') }}"
+            format: csv
+  - name: fabricSteam
+    # database: SteamAnalytics
+    schema: raw
+    tables:
+      - name: reviews
+      - name: games

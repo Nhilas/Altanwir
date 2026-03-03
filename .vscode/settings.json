@@ -1,6 +1,5 @@
 {
-    "sqltools.useNodeRuntime": true,
-    "dataworkspace.excludedProjects": [
-        "Altanwir/Altanwir.sqlproj"
-    ]
+    "files.associations": {
+        "*.sql": "jinja-sql"
+    }
 }

@@ -53,10 +53,8 @@ with source_data as (
         , peakCCU
         , requiredAge
         , price
-        , supportedLanguages
-        , fullAudioLanguages
-        --, string_split(supportedLanguages,',') as supportedLanguages
-        --, string_split(fullAudioLanguages, ',') as fullAudioLanguages
+        , string_split(trim(both '[]' from replace(supportedLanguages, '''', '')), ',') as supportedLanguages   -- remove square brackets and single quotes, then split by comma
+        , string_split(trim(both '[]' from replace(fullAudioLanguages, '''', '')), ',') as fullAudioLanguages
         , website
         , string_split(
             CONCAT_WS(',',        -- CONCAT_WS ignores NULL values, so only the platforms that are 'True' will be included in the resulting string

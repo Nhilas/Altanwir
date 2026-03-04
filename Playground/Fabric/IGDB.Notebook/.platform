@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "IGDB",
+    "description": ""
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "93ba129f-b77b-8f4c-4517-ed135ba4fbd1"
+  }
+}

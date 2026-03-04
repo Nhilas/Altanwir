@@ -10,6 +10,8 @@ with source_data as (
     {% else %}
         select * from {{ source('localSteam', 'games') }}
     {% endif %}
+        where column01 is not null
+            and ltrim(rtrim(column01)) not in ('', '-')     
 )
 
 , renamed as (

@@ -1,0 +1,14 @@
+version: 2
+models:
+  - name: stgGames
+    columns:
+      - name: gameId
+        tests:
+          - unique
+          - not_null
+  - name: stgReviews
+    columns:
+      - name: reviewId
+        tests:
+          - unique
+          - not_null

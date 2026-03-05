@@ -58,6 +58,17 @@ display(df_api)
 
 # CELL ********************
 
+# create a temp view to run sql queries on
+# the view lives only in the current spark session. you can create a global view using createGlobalTempView instead, but it will be shared across all sessions
+
+df_api.createOrReplaceTempView("tGames")
+
+# CELL ********************
+
+spark.sql("select * from tGames").show()
+
+# CELL ********************
+
 # load data from a csv file, then play with some transformation logic. use this to practice typical transform operations
 # then compare the run time between transformations and transformations plus saving the data into a table
 

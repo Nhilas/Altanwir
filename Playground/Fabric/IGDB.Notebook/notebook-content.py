@@ -102,22 +102,9 @@ df_csvTransformed.show(n=20,truncate=True)
 
 # CELL ********************
 
-dbs = spark.catalog.listDatabases()
-for db in dbs:
-    print(db.name)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
 # save the csv table
 
-df_csvTransformed.write.mode("overwrite").saveAsTable("Reviews")
+df_csvTransformed.write.mode("overwrite").saveAsTable("sample.Reviews")
 
 
 # METADATA ********************
@@ -129,14 +116,4 @@ df_csvTransformed.write.mode("overwrite").saveAsTable("Reviews")
 
 # CELL ********************
 
-# Check tables in your default lakehouse
-tables = spark.catalog.listTables()
-for t in tables:
-    print(t.name)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
+spark.sql("select * from sample.reviews limit 10").show()

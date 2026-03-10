@@ -63,9 +63,23 @@ display(df_api)
 
 df_api.createOrReplaceTempView("tGames")
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 spark.sql("select * from tGames").show()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -82,6 +96,21 @@ df_csv = spark.read.options(header='True',inferSchema='True').csv(abfssPath)
 # display(df_csv)
 
 
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# this is a side-quest to observe data shuffling by forcing a wide transformation (i.e. a transformation that requires nodes to exchange data between them aka shuffling)
+
+df_grouped = df_csv.groupBy("app_id").count().show(truncate=True)
+
+# to see the DAG, click on the description of the job that took the longest > stage that took the longest
 
 # METADATA ********************
 
@@ -128,3 +157,10 @@ df_csvTransformed.write.mode("overwrite").saveAsTable("sample.Reviews")
 # CELL ********************
 
 spark.sql("select * from sample.reviews limit 10").show()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }

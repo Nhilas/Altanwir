@@ -99,6 +99,8 @@ sourcePlatforms = df_raw.createOrReplaceTempView("sourcePlatforms")
 # MAGIC 
 # MAGIC -- extract the platforms from bronze.games
 # MAGIC 
+# MAGIC -- select * from bronze.games where isnull(platforms) = null       -- 0 rows
+# MAGIC 
 # MAGIC select *
 # MAGIC from bronze.games as g
 # MAGIC lateral view explode(g.platforms) as platform_id
@@ -114,28 +116,90 @@ sourcePlatforms = df_raw.createOrReplaceTempView("sourcePlatforms")
 
 # CELL ********************
 
+# The SQL Thought: 'INSERT INTO big_table SELECT * FROM small_table' x 5
+df_source = spark.read.table("bronze.games")
+
+# Double it 5 times: 50k -> 100k -> 200k -> 400k -> 800k -> 1.6M
+for _ in range(5):
+    df_source = df_source.unionAll(df_source)
+
+df_source.createOrReplaceTempView("synthGamesBig")
+print(f"Stress-test row count: {df_source.count()}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 # MAGIC %%sql
-# MAGIC -- [A!M2] The "Sandbox" Pattern: Explode first, Join second.
-# MAGIC -- This is much more stable than chaining LATERAL VIEW and JOIN in one block.
+# MAGIC -- 1. Force Spark to look at the 'bronze' schema/database specifically
+# MAGIC USE bronze;
 # MAGIC 
-# MAGIC WITH exploded_games AS (
+# MAGIC create or replace temporary view tempSynthGamesPlatforms as
+# MAGIC WITH synthGamePlatforms AS (
 # MAGIC     SELECT 
-# MAGIC         id AS game_id,
-# MAGIC         name AS game_name,
-# MAGIC         explode(platforms) AS platform_id
-# MAGIC     FROM bronze.games
-# MAGIC )
+# MAGIC         id AS gameId,
+# MAGIC         name AS gameName,
+# MAGIC         explode(platforms) AS platformId
+# MAGIC     FROM synthGamesBig
+# MAGIC )   
 # MAGIC SELECT 
-# MAGIC     eg.game_name,
-# MAGIC     p.name AS platform_name
-# MAGIC FROM exploded_games AS eg
-# MAGIC JOIN bronze.platforms AS p
-# MAGIC     ON eg.platform_id = p.id
+# MAGIC     gp.gameName
+# MAGIC     , p.name AS platformName
+# MAGIC FROM synthGamePlatforms AS gp
+# MAGIC JOIN platforms AS p
+# MAGIC     ON gp.platformId = p.id;
+# MAGIC 
+# MAGIC select * from tempSynthGamesPlatforms limit 10;
+# MAGIC 
+# MAGIC /* Notes
+# MAGIC - This got so big that the job timed out after running for about 30 mins
+# MAGIC - While I did get 10 rows displayed (thanks to Spark's Lazy Execution), the query behind the view never finished
+# MAGIC - This is because the shuffle was so big and it had so many rows that they couldn't be indexed in my particular cluster's ram
+# MAGIC */
 
 # METADATA ********************
 
 # META {
 # META   "language": "sparksql",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+spark.table("bronze.platforms").show(n=5)
+df_source.show(n=5)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# let's use python and broadcast join and compare
+
+from pyspark.sql import functions as f
+
+df_synthGamesBig = df_source \
+    .withColumn("platformId", f.explode("platforms")) \
+    .join(f.broadcast(spark.table("bronze.platforms").alias("p")),
+        f.col("platformId") == f.col("p.id"))
+
+df_synthGamesBig.show(n=10)
+
+# it uh. finished in 1 second. I need a minute to cry a bit. It's the most beautiful thing i've ever seen
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }
 

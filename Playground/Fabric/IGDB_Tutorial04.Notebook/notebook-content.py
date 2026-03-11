@@ -93,30 +93,13 @@ sourcePlatforms = df_raw.createOrReplaceTempView("sourcePlatforms")
 # META   "language_group": "synapse_pyspark"
 # META }
 
-# CELL ********************
+# MARKDOWN ********************
 
-# MAGIC %%sql
-# MAGIC 
-# MAGIC -- extract the platforms from bronze.games
-# MAGIC 
-# MAGIC -- select * from bronze.games where isnull(platforms) = null       -- 0 rows
-# MAGIC 
-# MAGIC select *
-# MAGIC from bronze.games as g
-# MAGIC lateral view explode(g.platforms) as platform_id
-# MAGIC join bronze.platforms as p
-# MAGIC     on platform_id = p.id
-
-# METADATA ********************
-
-# META {
-# META   "language": "sparksql",
-# META   "language_group": "synapse_pyspark"
-# META }
+# # Test Broadcast join vs regular join vs salted join
 
 # CELL ********************
 
-# The SQL Thought: 'INSERT INTO big_table SELECT * FROM small_table' x 5
+# we are going to artifically inflate the games table to stress-test the pipeline so I don't have to wait to pull IGDB games
 df_source = spark.read.table("bronze.games")
 
 # Double it 5 times: 50k -> 100k -> 200k -> 400k -> 800k -> 1.6M
@@ -132,6 +115,10 @@ print(f"Stress-test row count: {df_source.count()}")
 # META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }
+
+# MARKDOWN ********************
+
+# ## sql join vs python broadcast join
 
 # CELL ********************
 
@@ -171,18 +158,6 @@ print(f"Stress-test row count: {df_source.count()}")
 
 # CELL ********************
 
-spark.table("bronze.platforms").show(n=5)
-df_source.show(n=5)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
 # let's use python and broadcast join and compare
 
 from pyspark.sql import functions as f
@@ -195,6 +170,155 @@ df_synthGamesBig = df_source \
 df_synthGamesBig.show(n=10)
 
 # it uh. finished in 1 second. I need a minute to cry a bit. It's the most beautiful thing i've ever seen
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# # Let's test how this behaves with salting
+# 
+# ## What is salting
+# 
+# - Since the way spark handles joins is by assigning join keys to worker nodes, "specializing" them to minimize network traffic, we can get **data skew**
+# - **Data Skew** is when there's a lot more values for one key over the rest. for example, the platform id distribution is definitely more skewed towards windows
+# - the solution is **Salting**: artificially breaking up the distribution by assigning random values to the table in a new column. this will break the monopoly and help spread the computational load
+# - it is done using pyspark.sql.functions.rand
+
+# CELL ********************
+
+# MAGIC %%sql
+# MAGIC 
+# MAGIC -- let's see what our troublemakers are
+# MAGIC 
+# MAGIC with explodedPlatforms as (
+# MAGIC     SELECT 
+# MAGIC         id AS gameId,
+# MAGIC         name AS gameName,
+# MAGIC         explode(platforms) AS platformId
+# MAGIC     FROM synthGamesBig
+# MAGIC )
+# MAGIC 
+# MAGIC -- select count(*) from explodedPlatforms -- 2 652 608
+# MAGIC 
+# MAGIC select 
+# MAGIC     platformId
+# MAGIC     , count(*) as gameCount
+# MAGIC from explodedPlatforms
+# MAGIC group by platformId
+# MAGIC order by gameCount desc
+# MAGIC 
+# MAGIC -- yeah, 6 is pretty crazy, as well as 14, 130, and 48
+
+# METADATA ********************
+
+# META {
+# META   "language": "sparksql",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+from pyspark.sql import functions as f
+
+df_synthGamesExploded = df_source.withColumn("platformId", f.explode("platforms"))
+
+# df_synthGamesExploded.show(n=10)
+
+df_synthGamesSalted = df_synthGamesExploded.withColumn("salt",(f.rand()*10).cast("int"))
+
+df_synthGamesSalted.show(n=10)
+
+# df_synthGamesSalted.groupBy("salt").count().show()
+# ohhh so rand is automagically kind of even
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# create a lookup bridge table for salt
+
+df_saltLookup = spark.range(10).withColumnRenamed("id", "saltKey")
+
+# df_saltLookup.show()
+
+# and create a dataframe that cross applies the platforms with salt
+
+df_platformsSalted = spark.table("bronze.platforms").crossJoin(df_saltLookup)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# TEMPORARILY turn off autoBroadcastJoin so I can see the performance impact
+# spark.conf.set("spark.sql.autoBroadcastJoinThreshold", -1) # Set to 100MB
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# let's join without salt first
+
+df_unsaltedJoin = df_synthGamesSalted.alias("g") \
+    .join(df_platformsSalted.alias("p") \
+    ,(f.col("g.id") == f.col("p.id")))
+
+df_unsaltedJoin.show(n=10)
+# 20 seconds
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# let's join with salt now
+
+df_saltedJoin = df_synthGamesSalted.alias("g") \
+    .join(df_platformsSalted.alias("p") \
+    ,(f.col("g.id") == f.col("p.id")) & (f.col("g.salt") == f.col("p.saltKey")))
+
+df_saltedJoin.show(n=10)
+
+# 12 seconds
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# turn autobroadcastjoin back on
+# spark.conf.set("spark.sql.autoBroadcastJoinThreshold", 10485760) # Set to 10MB
+# spark.conf.set("spark.sql.autoBroadcastJoinThreshold", "10m") # Set to 10MB
+
+# Returns the value in bytes (e.g., '10485760' for 10MB)
+print(spark.conf.get("spark.sql.autoBroadcastJoinThreshold"))
 
 # METADATA ********************
 

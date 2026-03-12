@@ -54,24 +54,9 @@ for i in range(0, limit, 500):     # igdb limits to 500 results per request and 
 
     gamesList.extend(response.json())
 
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
 # Create a dataframe and then a view on top of it for sql transformations later on
-
 df_raw = spark.createDataFrame(gamesList)
-
-# This was a one-time thing to create the table
-# df_raw.write.mode("overwrite").saveAsTable("bronze.games")
-
-# Create temporary local view
-sourceGames = df_raw.createOrReplaceTempView("sourceGames")
+sourceGames = df_raw.createOrReplaceTempView("sourceGames")    
 
 # METADATA ********************
 
@@ -110,76 +95,5 @@ sourceGames = df_raw.createOrReplaceTempView("sourceGames")
 
 # META {
 # META   "language": "sparksql",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# %%sql
-
-# select * from bronze.games limit 10
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# %%sql
-
-# update bronze.games
-#     set name = 'temp update'
-#         , hash = 'lol'
-# where id in ( 152657, 360930 )
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# %%sql
-
-# select * from bronze.games
-# where id in ( 152657, 360930 )
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# %%sql
-
-# delete from bronze.games
-# where id in ( 51778, 29980 )
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# %%sql
-
-# select * from bronze.games
-# where id in ( 51778, 29980 )
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }

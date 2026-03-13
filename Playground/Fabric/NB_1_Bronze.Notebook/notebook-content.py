@@ -27,19 +27,35 @@
 # CELL ********************
 
 import requests
+import json
+import time
+
 from pyspark.sql import functions as f
+from pyspark.sql.types import ArrayType
 
 # CELL ********************
 
 # Parameters
-## set as FULL, INCREMENTAL, or NONE
+
+## run_Mode
+### FULL - drops the target table and recreates it entirely
+### INCREMENTAL - upsert via change detection
+### NONE - debugging purposes only
 run_mode = "FULL"
-maxLimit = 500 # acts as the limit for partial / incremental loads
+
+## maxLimit
+### acts as a hard limit to the # of records. useful for testing. 
+### set to 0 to extract everything
+maxLimit = 10000
+
+# a list containing the tables to be loaded
+table_load = ["games", "genres", "themes", "platforms", "platform_types"]
 
 # Yes bad practice I'm aware
 headers = {
     'Client-ID': 'IGDB_CLIENT_ID_REDACTED'
     , 'Authorization': 'Bearer IGDB_BEARER_TOKEN_REDACTED'
+    , 'Content-Type': 'text/plain'
 }
 
 baseURL = 'https://api.igdb.com/v4/'
@@ -49,34 +65,48 @@ baseURL = 'https://api.igdb.com/v4/'
 # set this session to allow autoMerge, meaning new columns will be added to the bronze tables if the source provides them
 spark.sql("SET spark.databricks.delta.schema.autoMerge.enabled = true")
 
-# a list of dictionaries used in the main request loop. contains:
+# a list of dictionaries used in the main request loop.
 ## endpoint: appended to the igdb api url in the request function
 ## target_table: used in the merge into statement
+## fields: used if specific columns must be extracted (or it's more efficient to pull specific columns than * exclude)
 ## exclude: used to exclude deprecated columns as per the igdb endpoint guide. null means we're taking every column
 table_configs = [
     {
         "endpoint": "games",
         "target_table": "bronze.games",
+        # "fields" : [
+        #     "age_ratings", "aggregated_rating", "aggregated_rating_count", "alternative_names", "dlcs", 
+        #     "expanded_games", "expansions", "external_games", "first_release_date", "game_modes", 
+        #     "game_status", "game_type", "genres", "involved_companies", "name", 
+        #     "parent_game", "platforms", "rating", "rating_count","standalone_expansions", 
+        #     "storyline", "summary", "themes", "total_rating", "total_rating_count"
+        # ],
+        "fields": [],
+        # "exclude": []
         "exclude": ["category", "collection", "follows", "status"]
     },
     {
         "endpoint": "genres",
         "target_table": "bronze.genres",
+        "fields": [],
         "exclude": []
     },
     {
         "endpoint": "themes",
         "target_table": "bronze.themes",
+        "fields": [],
         "exclude": []
     },
     {
         "endpoint": "platforms",
         "target_table": "bronze.platforms",
+        "fields": [],
         "exclude": ["category"]
     },
     {
         "endpoint": "platform_types",
         "target_table": "bronze.platform_types",
+        "fields": [],
         "exclude": []
     }    
 ]
@@ -88,53 +118,70 @@ table_configs = [
 # CELL ********************
 
 # API Request function
-def requestData(endpoint, run_mode, incremental_limit, exclude = []):
+def requestData(endpoint, limit, fields = [], exclude = []):
     
+    print(f'\tSTART: Processing source data')
+
     tableURL  = f"{baseURL}{endpoint}"
-    print(f'API URL: {tableURL}')
+    print(f'\t\tAPI: {tableURL}')
 
-    count_response = requests.post(url=f"{tableURL}/count", headers=headers)
+    # Initialize the Session Context Manager
+    ## This automatically closes the connection when the indented block ends
+    with requests.Session() as session:    
 
-    records_to_fetch = 0
-    if count_response.status_code != 200:
-        print(f'Error getting count: {count_response.status_code} - {count_response.text}')
-        # We'll fetch 0 records if we can't get a count
-    else:
-        api_count = count_response.json()['count']
-        
-        # If we're loading everything then we'll loop until the total # of records is reached
-        ## Otherwise we load either the available # of records, or maxLimit, whichever is smallest
-        if run_mode == 'FULL':
-            records_to_fetch = api_count
+        # Every request made with 'session.' will now have these headers automatically
+        session.headers.update(headers)
+
+        count_response = session.post(url=f"{tableURL}/count", headers=headers)
+
+        records_to_fetch = 0
+        if count_response.status_code != 200:
+            print(f'\t\tERROR: {count_response.status_code} - {count_response.text} \n while getting count')
+            # We'll fetch 0 records if we can't get a count
         else:
-            records_to_fetch = min(api_count, incremental_limit)
+            api_count = count_response.json()['count']
+            
+            # If we're loading everything then we'll loop until the total # of records is reached
+            ## Otherwise we load either the available # of records, or maxLimit, whichever is smallest
+            if limit == 0:
+                records_to_fetch = api_count
+            else:
+                records_to_fetch = min(api_count, limit)
 
-    if records_to_fetch == 0:
-        print(f"Skipping {endpoint}, 0 records to fetch.")
-        return []
+        if records_to_fetch == 0:
+            print(f"\t\tSKIP: {endpoint}, 0 records to fetch.")
+            return []
 
-    resultList = []
+        print(f'\t\tSTART: Loading {records_to_fetch} total records. Found {api_count} records.')
 
-    for i in range(0, records_to_fetch, 500):     # igdb limits to 500 results per request and 4 requests a second
+        resultList = []
 
-        print(f'Pulling records {i} to {i+500}...')
+        for i in range(0, records_to_fetch, 500):     # igdb limits to 500 results per request and 4 requests a second
 
-        query = (                                                   # this uses apicalypse
-            f'fields *;'                                            ## select *
-            + (f'exclude {",".join(exclude)};' if exclude else '')  ## remove these columns from the select, if exclude exists
-            + 'limit 500;'                                          ## 500 records at a time
-            + f'offset {i};'                                        ## without the previous 500 records
-        )
+            query = (                                                               # this uses apicalypse
+                (f'fields {",".join(fields)};' if fields else 'fields *;')          ## select *, or select [fields]
+                + (f'exclude {",".join(exclude)};' if exclude else '')              ## remove these columns from the select, if exclude exists
+                + 'limit 500;'                                                      ## 500 records at a time
+                + f'offset {i};'                                                    ## without the previous 500 records
+            )
 
-        response = requests.post(url=tableURL, headers=headers, data= query)
+            print(f'\t\tQuery sent: {query}')
 
-        if response.status_code != 200:
-            print(f'Error: {response.status_code} - {response.text}')
-            break
+            response = session.post(url=tableURL, data=query)            
 
-        resultList.extend(response.json())
+            if response.status_code != 200:
+                print(f'\t\ERROR: {response.status_code} - {response.text}')
+                break
 
-    print(f'Processed source for {endpoint}; found {len(resultList)} records')
+            resultList.extend(response.json())
+
+            print(f'\t\t\tLoaded {endpoint} records {i} to {i+500}...')
+
+            # IGDB allows 4 requests per second (1 request every 0.25s).
+            # We sleep 0.26s to be safe. This doesn't run that fast, but best to be sure
+            time.sleep(0.26)            
+
+    print(f'\tEND: source processing; Loaded {len(resultList)} total {endpoint} records')
     return resultList
 
 # MARKDOWN ********************
@@ -143,41 +190,41 @@ def requestData(endpoint, run_mode, incremental_limit, exclude = []):
 
 # CELL ********************
 
-# this is just a temporary cell to show me the record counts in the source api
-for current_config in table_configs:
-
-    tableURL = f"{baseURL}{current_config['endpoint']}/count"
-
-    response = requests.post(url=tableURL, headers=headers)
-
-    if response.status_code != 200:
-        print(f'Error: {response.status_code} - {response.text}')
-    else:
-        totalCount = response.json()
-        print(f"{current_config['endpoint']}: {totalCount['count']}")
-
-# CELL ********************
-
 if run_mode == 'NONE':
-    print("run_mode is 'NONE'. Skipping all processing.")
+    print("SKIP: run_mode is 'NONE'. Skipping all processing.")
 else:
+    print(f"START: Processing the following endpoints: {table_load}...")
+    print(f'PARAMETERS:\n - run_mode = {run_mode}')
+    print(f' - maxLimit = {maxLimit}') if maxLimit != 0  else ' - no maxLimit set, loading everything'
+    
     for current_config in table_configs:
-        print(f"Processing {current_config['endpoint']}...")
 
-        # returns the table with all columns except the excluded ones. the response is a json
-        ## it will check if there are more records than the limit. if no, then it will only request until it gets the records
-        df_raw = spark.createDataFrame(
-            requestData(
+        # continue is an unintuitive word for what this command does: if the endpoint isn't in the table_load, skip it
+        current_endpoint = current_config['endpoint']
+        if current_endpoint not in table_load:
+            continue        
+        
+        print(f"START: Processing {current_config['endpoint']}")
+
+        # extract data from igdb api
+        raw_data = requestData(
                 current_config['endpoint'],
-                run_mode,
                 maxLimit, 
+                current_config['fields'],
                 current_config['exclude']
             )
-        )
 
-        if df_raw.rdd.isEmpty():
-            print(f"No data returned for {current_config['endpoint']}. Skipping to next table.")
+        if not raw_data:
+            print(f"\tSKIP: No data returned for {current_config['endpoint']}.")
             continue
+
+        # Use read.json to scan ALL rows and infer the complete schema (merging keys from sparse data)
+        df_raw = spark.read.json(spark.sparkContext.parallelize([json.dumps(r) for r in raw_data]))        
+
+        # Convert ArrayType columns to string to avoid Fabric limitations with complex types
+        for field in df_raw.schema.fields:
+            if isinstance(field.dataType, ArrayType):
+                df_raw = df_raw.withColumn(field.name, f.col(field.name).cast("string"))
 
         # create the hash inside the dataframe
         ## get the list of all columns inside df_raw. then exclude 'id'
@@ -187,18 +234,23 @@ else:
         ## hash the concatenation of all columns. concat_ws ignores/skips nulls
         df_hashed = df_raw.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
 
+        print(f'\tSTART: SQL Processing for {current_config["target_table"]}')
+
         # create a temporary view to use in the merge as a source
         df_hashed.createOrReplaceTempView("hashedView")    
 
         if run_mode == 'FULL':
             # yolo
-            print(f"Recreating {current_config['target_table']}...")
+            print(f"\t\tSTART: Recreating {current_config['target_table']}...")
+
             spark.sql(f"drop table if exists {current_config['target_table']}")
             df_hashed.write.mode("overwrite").saveAsTable(f"{current_config['target_table']}")
-            print(f"{current_config['target_table']} recreated successfully!")
+
+            print(f"\t\tEND: {current_config['target_table']} recreated successfully!")
         else:
             # write and execute the merge
-            print(f"Merging {current_config['target_table']}...")
+            print(f"\t\tSTART: Merging {current_config['target_table']}...")
+            
             merge_sql = f"""
             merge into {current_config['target_table']} as t
             using hashedView as s
@@ -217,39 +269,8 @@ else:
             inserted_rows = results_row['num_inserted_rows']
             updated_rows = results_row['num_updated_rows']
 
-            print(f"Merge ended for {current_config['target_table']}. Inserted: {inserted_rows}, Updated: {updated_rows}")
+            print(f"\t\tEND: Merge ended for {current_config['target_table']}. Inserted: {inserted_rows}, Updated: {updated_rows}")
 
-# MARKDOWN ********************
-
-# # Temporary ghetto table formation area
-
-# CELL ********************
-
-# endpoint = 'genres'
-# exclude = []
-# # exclude : ["category", "collection", "follows", "status"]
-
-# # returns the table with all columns except the excluded ones. the response is a json
-# df_raw = spark.createDataFrame(requestData(endpoint, maxLimit, exclude))
-
-# # create the hash inside the dataframe
-# ## get the list of all columns inside df_raw. then exclude 'id'
-# columns_to_hash = list(df_raw.columns)
-# columns_to_hash.remove("id")
-
-# ## hash the concatenation of all columns. concat_ws ignores/skips nulls
-# df_hashed = df_raw.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
-
-# df_hashed.show(n=5)
-
-# CELL ********************
-
-# spark.sql("drop table if exists bronze.games")
-
-# df_hashed.write.mode("overwrite").saveAsTable("bronze.games")
-
-# CELL ********************
-
-# %%sql
-
-# select * from bronze.games limit 10
+        print(f'\tEND: Ended SQL Processing for {current_config["target_table"]}')
+        print(f"\END: Processed {current_config['endpoint']}!")
+    print(f"END: Processed endpoints: {table_load}!")

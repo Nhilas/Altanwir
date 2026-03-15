@@ -49,7 +49,8 @@ run_mode = "FULL"
 maxLimit = 10000
 
 # a list containing the tables to be loaded
-table_load = ["games", "genres", "themes", "platforms", "platform_types"]
+# table_load = ["games", "genres", "themes", "platforms", "platform_types"]
+table_load = ["external_game_sources"]
 
 # Yes bad practice I'm aware
 headers = {
@@ -108,8 +109,25 @@ table_configs = [
         "target_table": "bronze.platform_types",
         "fields": [],
         "exclude": []
-    }    
+    },
+    {
+        "endpoint": "external_games",
+        "target_table": "bronze.external_games",
+        "fields": [],
+        "exclude": []
+    },
+    {
+        "endpoint": "external_game_sources",
+        "target_table": "bronze.external_game_sources",
+        "fields": ["id", "name", "created_at", "updated_at"],
+        "exclude": []
+    }            
 ]
+
+# CELL ********************
+
+response = requests.post('https://api.igdb.com/v4/external_game_sources', headers=headers, data='fields checksum,created_at,name,updated_at;')
+print ("response: %s" % str(response.json()))
 
 # MARKDOWN ********************
 

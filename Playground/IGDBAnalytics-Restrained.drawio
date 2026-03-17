@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e">
     <diagram id="KiYtjdazBL_MHTK11tlL" name="Page-1">
-        <mxGraphModel dx="2284" dy="787" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+        <mxGraphModel dx="4090" dy="1312" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -196,25 +196,25 @@
                 <mxCell id="173" value="Games" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="70" vertex="1">
                     <mxGeometry x="120" y="60" width="360" height="380" as="geometry"/>
                 </mxCell>
-                <mxCell id="174" value="&lt;ul&gt;&lt;li&gt;gameId&lt;/li&gt;&lt;li&gt;gameName&lt;/li&gt;&lt;li&gt;&lt;span style=&quot;color: rgb(192, 192, 192); background-color: transparent;&quot;&gt;releasedOn&lt;/span&gt;&lt;/li&gt;&lt;li&gt;externalRating&lt;/li&gt;&lt;li&gt;externalRatingSourceCount&lt;/li&gt;&lt;li&gt;igdbRating&lt;/li&gt;&lt;li&gt;igdbRatingSourceCount&lt;/li&gt;&lt;li&gt;aggregatedRating&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;aggregatedRatingSourceCount&lt;/font&gt;&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;hash&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;&lt;div&gt;I will keep these columns for readability, but they are not used in modeling at all:&lt;/div&gt;&lt;div&gt;&lt;ul&gt;&lt;li&gt;genreIds&lt;/li&gt;&lt;li&gt;themeIds&lt;/li&gt;&lt;li&gt;platformIds&lt;/li&gt;&lt;/ul&gt;&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="173" vertex="1">
+                <mxCell id="174" value="&lt;ul&gt;&lt;li&gt;gameKey&lt;/li&gt;&lt;li&gt;gameName&lt;/li&gt;&lt;li&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;&lt;font&gt;releasedOn&lt;/font&gt;&lt;/span&gt;&lt;/li&gt;&lt;li&gt;externalRating&lt;/li&gt;&lt;li&gt;externalRatingSourceCount&lt;/li&gt;&lt;li&gt;igdbRating&lt;/li&gt;&lt;li&gt;igdbRatingSourceCount&lt;/li&gt;&lt;li&gt;aggregatedRating&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;aggregatedRatingSourceCount&lt;/font&gt;&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;hash&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;&lt;div&gt;I will keep these columns for readability, but they are not used in modeling at all:&lt;/div&gt;&lt;div&gt;&lt;ul&gt;&lt;li&gt;genreIds&lt;/li&gt;&lt;li&gt;themeIds&lt;/li&gt;&lt;li&gt;platformIds&lt;/li&gt;&lt;/ul&gt;&lt;/div&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="173" vertex="1">
                     <mxGeometry y="30" width="360" height="350" as="geometry"/>
                 </mxCell>
                 <mxCell id="175" value="Genres" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="70" vertex="1">
                     <mxGeometry x="680" y="60" width="120" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="176" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;genreId&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;genreName&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="175" vertex="1">
+                <mxCell id="176" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;genreKey&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;genreName&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="175" vertex="1">
                     <mxGeometry y="30" width="120" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="179" value="Platforms" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="70" vertex="1">
                     <mxGeometry x="1000" y="60" width="120" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="180" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;platformId&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;platformName&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;platformType&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;hash&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="179" vertex="1">
+                <mxCell id="180" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;platformIKey&lt;/font&gt;&lt;/li&gt;&lt;li&gt;platformName&lt;/li&gt;&lt;li&gt;&lt;font&gt;platformType&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;hash&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="179" vertex="1">
                     <mxGeometry y="30" width="120" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="181" value="Themes" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="70" vertex="1">
                     <mxGeometry x="1000" y="240" width="120" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="182" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;themeId&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;themeName&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="181" vertex="1">
+                <mxCell id="182" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;themeKey&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;themeName&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="181" vertex="1">
                     <mxGeometry y="30" width="120" height="90" as="geometry"/>
                 </mxCell>
                 <mxCell id="193" value="" style="points=[];aspect=fixed;html=1;align=center;shadow=0;dashed=0;fillColor=#FF6A00;strokeColor=none;shape=mxgraph.alibaba_cloud.nas_network_attached_storage;" parent="70" vertex="1">
@@ -223,25 +223,25 @@
                 <mxCell id="206" value="External Games" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="70" vertex="1">
                     <mxGeometry x="520" y="240" width="200" height="200" as="geometry"/>
                 </mxCell>
-                <mxCell id="207" value="&lt;ul&gt;&lt;li&gt;egId&lt;/li&gt;&lt;li&gt;gameId&lt;/li&gt;&lt;li&gt;externalId&lt;/li&gt;&lt;li&gt;eGameName&lt;/li&gt;&lt;li&gt;eSourceName&lt;/li&gt;&lt;li&gt;platformId&lt;/li&gt;&lt;li&gt;hash&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="206" vertex="1">
+                <mxCell id="207" value="&lt;ul&gt;&lt;li&gt;egKey&lt;/li&gt;&lt;li&gt;gameKey&lt;/li&gt;&lt;li&gt;externalId&lt;/li&gt;&lt;li&gt;eGameName&lt;/li&gt;&lt;li&gt;eSourceName&lt;/li&gt;&lt;li&gt;platformKey&lt;/li&gt;&lt;li&gt;hash&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="206" vertex="1">
                     <mxGeometry y="30" width="200" height="170" as="geometry"/>
                 </mxCell>
                 <mxCell id="241" value="bridgeGenres" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="70" vertex="1">
                     <mxGeometry x="520" y="60" width="120" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="242" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;gameId&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;genreId&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="241" vertex="1">
+                <mxCell id="242" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;gameKey&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;genreKey&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="241" vertex="1">
                     <mxGeometry y="30" width="120" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="243" value="bridgeThemes" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="70" vertex="1">
                     <mxGeometry x="840" y="240" width="120" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="244" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;gameId&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;themeId&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="243" vertex="1">
+                <mxCell id="244" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;gameKey&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;themeKey&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="243" vertex="1">
                     <mxGeometry y="30" width="120" height="90" as="geometry"/>
                 </mxCell>
                 <mxCell id="245" value="bridgePlatforms" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="70" vertex="1">
                     <mxGeometry x="840" y="60" width="120" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="246" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;gameId&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;platformId&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="245" vertex="1">
+                <mxCell id="246" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;gameKey&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;platformKey&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="245" vertex="1">
                     <mxGeometry y="30" width="120" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="247" style="edgeStyle=none;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="70" source="242" target="176" edge="1">
@@ -268,8 +268,8 @@
                 <mxCell id="194" value="" style="image;sketch=0;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/mscae/Key_Vaults.svg;" parent="160" vertex="1">
                     <mxGeometry x="400" y="40" width="76.8" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="195" value="Surrogate Key creation&lt;div&gt;&lt;/div&gt;&lt;div&gt;- using sha2 hash on existing id&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;Arrays remain Nested, nested ids remain as they are (not replaced with surrogates)&lt;/div&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;align=left;" parent="160" vertex="1">
-                    <mxGeometry x="490" y="40" width="190" height="120" as="geometry"/>
+                <mxCell id="195" value="Surrogate Key creation&lt;div&gt;&lt;/div&gt;&lt;div&gt;- using sha2 hash on existing id&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;b&gt;CONVENTION:&lt;/b&gt;&lt;/div&gt;&lt;div&gt;- key = surrogate&lt;/div&gt;&lt;div&gt;- id = original igdb id&lt;/div&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;align=left;" parent="160" vertex="1">
+                    <mxGeometry x="490" y="40" width="190" height="100" as="geometry"/>
                 </mxCell>
                 <mxCell id="204" value="&lt;p&gt;&lt;br&gt;&lt;/p&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" parent="160" vertex="1">
                     <mxGeometry x="880.38" y="40" width="269.62" height="80" as="geometry"/>
@@ -280,11 +280,24 @@
                 <mxCell id="209" value="" style="points=[];aspect=fixed;html=1;align=center;shadow=0;dashed=0;fillColor=#FF6A00;strokeColor=none;shape=mxgraph.alibaba_cloud.eventbridge;" parent="160" vertex="1">
                     <mxGeometry x="680" y="40" width="80" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="239" value="Bridge tables contain surrogate keys, not soruce ids&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;The pattern is insert / delete.&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" parent="160" vertex="1">
+                <mxCell id="239" value="Bridge tables contain surrogate keys, not soruce ids&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;The pattern is full load every time as the data is small enough.&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" parent="160" vertex="1">
                     <mxGeometry x="920" y="40" width="200" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="224" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="1" source="187" target="211" edge="1">
-                    <mxGeometry relative="1" as="geometry"/>
+                <mxCell id="224" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="187" target="211" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="-220" y="1740"/>
+                            <mxPoint x="-860" y="1740"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="278" style="edgeStyle=none;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="187" target="256">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="-220" y="1740"/>
+                            <mxPoint x="420" y="1740"/>
+                        </Array>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="187" value="NB_3_Gold" style="swimlane;startSize=23;" parent="1" vertex="1">
                     <mxGeometry x="-800" y="1560" width="1160" height="160" as="geometry"/>
@@ -298,11 +311,11 @@
                 <mxCell id="190" value="" style="points=[];aspect=fixed;html=1;align=center;shadow=0;dashed=0;fillColor=#FF6A00;strokeColor=none;shape=mxgraph.alibaba_cloud.fc_function_compute;" parent="187" vertex="1">
                     <mxGeometry x="320" y="40" width="80.47" height="80" as="geometry"/>
                 </mxCell>
-                <mxCell id="191" value="Rating tier logic (S / A / B / C / D)&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;! Every &#39;ID&#39; here is a surrogate hash&lt;/div&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;align=left;" parent="187" vertex="1">
+                <mxCell id="191" value="Rating tier logic (S / A / B / C / D)&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;No IDs (only surrogates), no columns that are not used&lt;/div&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;align=left;" parent="187" vertex="1">
                     <mxGeometry x="410" y="40" width="190" height="90" as="geometry"/>
                 </mxCell>
                 <mxCell id="211" value="Gold" style="swimlane;whiteSpace=wrap;html=1;" parent="1" vertex="1">
-                    <mxGeometry x="-840" y="1760" width="1240" height="480" as="geometry"/>
+                    <mxGeometry x="-1480" y="1760" width="1240" height="480" as="geometry"/>
                 </mxCell>
                 <mxCell id="231" style="edgeStyle=none;html=1;exitX=1;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;" parent="211" edge="1">
                     <mxGeometry relative="1" as="geometry">
@@ -313,25 +326,25 @@
                 <mxCell id="212" value="factScores" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="211" vertex="1">
                     <mxGeometry x="120" y="60" width="240" height="260" as="geometry"/>
                 </mxCell>
-                <mxCell id="213" value="&lt;ul&gt;&lt;li&gt;gameId&lt;/li&gt;&lt;li&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;externalRating&lt;/span&gt;&lt;/li&gt;&lt;li&gt;externalRatingSourceCount&lt;/li&gt;&lt;li&gt;igdbRating&lt;/li&gt;&lt;li&gt;igdbRatingSourceCount&lt;/li&gt;&lt;li&gt;aggregatedRating&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;aggregatedRatingSourceCount&lt;/font&gt;&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;ratingTier&lt;/font&gt;&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;hash&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="212" vertex="1">
+                <mxCell id="213" value="&lt;ul&gt;&lt;li&gt;gameKey&lt;/li&gt;&lt;li&gt;&lt;span style=&quot;background-color: transparent;&quot;&gt;externalRating&lt;/span&gt;&lt;/li&gt;&lt;li&gt;externalRatingSourceCount&lt;/li&gt;&lt;li&gt;igdbRating&lt;/li&gt;&lt;li&gt;igdbRatingSourceCount&lt;/li&gt;&lt;li&gt;aggregatedRating&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;aggregatedRatingSourceCount&lt;/font&gt;&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;ratingTier&lt;/font&gt;&lt;/li&gt;&lt;li style=&quot;scrollbar-color: rgb(75, 75, 75) rgb(27, 29, 30);&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(192, 192, 192), rgb(255, 255, 255));&quot;&gt;hash&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="212" vertex="1">
                     <mxGeometry y="30" width="240" height="230" as="geometry"/>
                 </mxCell>
                 <mxCell id="215" value="dimGenres" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="211" vertex="1">
                     <mxGeometry x="1000" y="60" width="120" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="216" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;genreId&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;genreName&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="215" vertex="1">
+                <mxCell id="216" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;genreKey&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;genreName&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="215" vertex="1">
                     <mxGeometry y="30" width="120" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="220" value="dimThemes" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="211" vertex="1">
                     <mxGeometry x="800" y="60" width="120" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="221" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;themeId&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;themeName&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="220" vertex="1">
+                <mxCell id="221" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;themeKey&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;themeName&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="220" vertex="1">
                     <mxGeometry y="30" width="120" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="217" value="dimPlatforms" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="211" vertex="1">
                     <mxGeometry x="600" y="60" width="120" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="218" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;platformId&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;platformName&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;platformType&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;hash&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="217" vertex="1">
+                <mxCell id="218" value="&lt;ul&gt;&lt;li&gt;&lt;font&gt;platformKey&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;platformName&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;platformType&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;font&gt;hash&lt;/font&gt;&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="217" vertex="1">
                     <mxGeometry y="30" width="120" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="223" value="" style="points=[];aspect=fixed;html=1;align=center;shadow=0;dashed=0;fillColor=#FF6A00;strokeColor=none;shape=mxgraph.alibaba_cloud.nas_network_attached_storage;" parent="211" vertex="1">
@@ -387,7 +400,7 @@
                 <mxCell id="225" value="dimGames" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="211" vertex="1">
                     <mxGeometry x="400" y="60" width="120" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="226" value="&lt;ul&gt;&lt;li&gt;gameId&lt;/li&gt;&lt;li&gt;gameName&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="225" vertex="1">
+                <mxCell id="226" value="&lt;ul&gt;&lt;li&gt;gameKey&lt;/li&gt;&lt;li&gt;gameName&lt;/li&gt;&lt;li&gt;releasedOn&lt;/li&gt;&lt;li&gt;hash&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="225" vertex="1">
                     <mxGeometry y="30" width="120" height="110" as="geometry"/>
                 </mxCell>
                 <mxCell id="235" style="edgeStyle=none;html=1;exitX=0.978;exitY=0.006;exitDx=0;exitDy=0;entryX=0.008;entryY=0.185;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;" parent="211" source="226" target="227" edge="1">
@@ -401,8 +414,14 @@
                 <mxCell id="227" value="dimExternalGames" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" parent="211" vertex="1">
                     <mxGeometry x="600" y="240" width="160" height="200" as="geometry"/>
                 </mxCell>
-                <mxCell id="228" value="&lt;ul&gt;&lt;li&gt;egId&lt;/li&gt;&lt;li&gt;gameId&lt;/li&gt;&lt;li&gt;eId&lt;/li&gt;&lt;li&gt;eGameName&lt;/li&gt;&lt;li&gt;eSourceName&lt;/li&gt;&lt;li&gt;platformId&lt;/li&gt;&lt;li&gt;hash&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="227" vertex="1">
+                <mxCell id="228" value="&lt;ul&gt;&lt;li&gt;egKey&lt;/li&gt;&lt;li&gt;gameKey&lt;/li&gt;&lt;li&gt;eId&lt;/li&gt;&lt;li&gt;eGameName&lt;/li&gt;&lt;li&gt;eSourceName&lt;/li&gt;&lt;li&gt;platformName&lt;/li&gt;&lt;li&gt;platformType&lt;/li&gt;&lt;li&gt;hash&lt;/li&gt;&lt;/ul&gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" parent="227" vertex="1">
                     <mxGeometry y="30" width="160" height="170" as="geometry"/>
+                </mxCell>
+                <mxCell id="256" value="Marts" style="swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="-195" y="1760" width="1240" height="480" as="geometry"/>
+                </mxCell>
+                <mxCell id="266" value="" style="points=[];aspect=fixed;html=1;align=center;shadow=0;dashed=0;fillColor=#FF6A00;strokeColor=none;shape=mxgraph.alibaba_cloud.nas_network_attached_storage;" vertex="1" parent="256">
+                    <mxGeometry y="60" width="80" height="80" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>

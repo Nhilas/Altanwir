@@ -37,6 +37,13 @@ genres_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.L
 themes_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/bronze/themes"
 platforms_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/bronze/platforms"
 platform_types_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/bronze/platform_types"
+external_games_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/bronze/external_games"
+external_game_sources_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/bronze/external_game_sources"
+
+silverGames_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/silver/games"
+silverGenres_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/silver/genres"
+silverThemes_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/silver/themes"
+silverPlatforms_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/silver/platforms"
 run_mode = "FULL" # FULL or INCREMENTAL
 
 # MARKDOWN ********************
@@ -63,73 +70,46 @@ run_mode = "FULL" # FULL or INCREMENTAL
 
 # MARKDOWN ********************
 
-# ## To Do
-# 
-# - rewrite the initial select of columns and df_cleaned using selectExpr()
-# ```python
-# # example
-# dataframe.selectExpr(
-#     "original_column_name as new_column_name",
-#     "trim(another_column) as trimmed_column"
-# )
-# ```
-# 
-# - rewrite the hashing part to use the new df_cleaned and the below
-# ```python
-# # The general pattern for filtering a list
-# new_list = [item for item in original_list if some_condition_is_true]
-# 
-# # Applying it to your use case
-# columns_to_hash = [c for c in df_cleaned.columns if c != 'gameId']
-# ```
-
-# MARKDOWN ********************
-
 # ## silver.games
 
 # CELL ********************
 
-df = spark.read.format("delta").load(games_path).select("id", "name", "external_games", "genres", "themes", "platforms", "first_release_date", "created_at", "aggregated_rating", "aggregated_rating_count","rating", "rating_count", "total_rating", "total_rating_count")
-
-# enforce nulls for game names and deduplicate by id
 deduplicateBy = Window.partitionBy("id").orderBy(f.col("created_at").desc())
 
+df = spark.read.format("delta").load(games_path)
+
 df_filtered = df \
-    .withColumn("name"
-        , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
-        .otherwise(f.col("name"))
-    ) \
-    .withColumn("row_number"
-        , f.row_number().over(deduplicateBy)
-    ) \
-    .filter(
-        (f.col("id").cast("int").isNotNull())   # cast ensures we filter out any ids that are not numbers, for whatever reason
-        & (f.col("name").isNotNull())
-        & (f.col("row_number") == 1)
-    )
+.withColumn("name"                          # collapse unknowns into nulls
+    , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
+    .otherwise(f.col("name"))
+).withColumn("row_number"                   # sort by id and by created_at, which is an igdb field that represents when the record was added in the igdb
+    , f.row_number().over(deduplicateBy)
+).filter(
+    (f.col("id").cast("int").isNotNull())   # cast ensures we filter out any ids that are not numbers, for whatever reason
+    & (f.col("name").isNotNull())
+    & (f.col("row_number") == 1)
+)
 
 df_cleaned = df_filtered \
-    .withColumn("gameId", f.sha2(f.col("id").cast("string"), 256)) \
-    .withColumn("gameName", f.trim(f.col("name"))) \
-    .withColumn("genreId", f.col("genres")) \
-    .withColumn("themeId", f.col("themes")) \
-    .withColumn("platformId", f.col("platforms")) \
-    .withColumn("externalGamesId", f.col("external_games")) \
-    .withColumn("releasedOn", f.from_unixtime(f.col("first_release_date")).cast("date")) \
-    .withColumn("externalRating", f.round(f.col("aggregated_rating"),2)) \
-    .withColumn("externalRatingSourceCount", f.col("aggregated_rating_count")) \
-    .withColumn("igdbRating", f.round(f.col("rating"),2)) \
-    .withColumn("igdbRatingSourceCount", f.col("rating_count")) \
-    .withColumn("aggregatedRating", f.round(f.col("total_rating"),2)) \
-    .withColumn("aggregatedRatingSourceCount", f.col("total_rating_count"))
+.selectExpr(
+    "sha2(cast(id as string), 256)                      as gameKey"
+    , "trim(name)                                       as gameName"
+    , "id                                               as gameId"
+    , "genres                                           as genreId"
+    , "themes                                           as themeId"
+    , "platforms                                        as platformId"
+    , "cast(from_unixtime(first_release_date) as date)  as releasedOn"
+    , "round(aggregated_rating, 2)                      as externalRating"
+    , "aggregated_rating_count                          as externalRatingSourcesCount"
+    , "round(rating, 2)                                 as igdbRating"
+    , "rating_count                                     as igdbRatingSourceCount"
+    , "round(total_rating, 2)                           as aggregatedRating"
+    , "total_rating_count                               as aggregatedRatingSourceCount"
+)
 
-# selecting renamed columns and hashing only them, except gameId
-df_renamed = df_cleaned.select("gameId", "gameName", "genreId", "themeId", "platformId", "releasedOn", "externalGamesId", "externalRating", "externalRatingSourceCount", "igdbRating", "igdbRatingSourceCount", "aggregatedRating", "aggregatedRatingSourceCount")
+columns_to_hash = [c for c in df_cleaned.columns if c != 'gameKey']
 
-columns_to_hash = list(df_renamed.columns)
-columns_to_hash.remove("gameId")
-
-df_hashed = df_renamed.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
+df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
 
 
 # METADATA ********************
@@ -160,7 +140,7 @@ else:
     # 2. Execute Merge
     targetTable.alias("t").merge(
         source = df_hashed.alias("s"),
-        condition = "t.gameId = s.gameId"
+        condition = "t.gameKey = s.gameKey"
     ).whenMatchedUpdateAll(
         # Optional: Only update if the content actually changed (using your hash column)
         condition = "t.hash != s.hash"
@@ -175,29 +155,28 @@ else:
 
 # CELL ********************
 
-df = spark.read.format("delta").load(genres_path).select("id", "name", "created_at")
-
 deduplicateBy = Window.partitionBy("id").orderBy(f.col("created_at").desc())
 
+df = spark.read.format("delta").load(genres_path)
+
 df_filtered = df \
-    .withColumn("name"
-        , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
-        .otherwise(f.col("name"))
-    ) \
-    .withColumn("row_number"
-        , f.row_number().over(deduplicateBy)
-    ) \
-    .filter(
-        (f.col("id").cast("int").isNotNull())
-        & (f.col("name").isNotNull())
-        & (f.col("row_number") == 1)
-    )
+.withColumn("name"                          # collapse unknowns into nulls
+    , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
+    .otherwise(f.col("name"))
+).withColumn("row_number"                   # sort by id and by created_at, which is an igdb field that represents when the record was added in the igdb
+    , f.row_number().over(deduplicateBy)
+).filter(
+    (f.col("id").cast("int").isNotNull())   # cast ensures we filter out any ids that are not numbers, for whatever reason
+    & (f.col("name").isNotNull())
+    & (f.col("row_number") == 1)
+)
 
 df_cleaned = df_filtered \
-    .withColumn("genreId", f.sha2(f.col("id").cast("string"), 256)) \
-    .withColumn("genreName", f.trim(f.col("name")))
-
-df_renamed = df_cleaned.select("genreId", "genreName")
+.selectExpr(
+    "sha2(cast(id as string), 256)                      as genreKey"
+    , "id                                               as genreId"    
+    , "trim(name)                                       as genreName"
+)
 
 
 # CELL ********************
@@ -206,15 +185,15 @@ spark.sql("USE spark_catalog.silver")
 
 if (run_mode == "FULL"):
     spark.sql("drop table if exists silver.genres")
-    df_renamed.write.format("delta").saveAsTable("silver.genres")    
+    df_cleaned.write.format("delta").saveAsTable("silver.genres")    
 elif (spark.catalog.tableExists("silver.genres")):
-    df_renamed.write.format("delta").saveAsTable("silver.genres")
+    df_cleaned.write.format("delta").saveAsTable("silver.genres")
 else:    
     targetTable = DeltaTable.forName(spark, "silver.genres")
 
     targetTable.alias("t").merge(
-        source = df_renamed.alias("s"),
-        condition = "t.genreId = s.genreId"
+        source = df_cleaned.alias("s"),
+        condition = "t.genreKey = s.genreKey"
     ).whenMatchedUpdateAll(
         condition = "t.genreName != s.genreName"
     ).whenNotMatchedInsertAll(
@@ -227,30 +206,28 @@ else:
 
 # CELL ********************
 
-df = spark.read.format("delta").load(themes_path).select("id", "name", "created_at")
-
 deduplicateBy = Window.partitionBy("id").orderBy(f.col("created_at").desc())
 
+df = spark.read.format("delta").load(themes_path)
+
 df_filtered = df \
-    .withColumn("name"
-        , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
-        .otherwise(f.col("name"))
-    ) \
-    .withColumn("row_number"
-        , f.row_number().over(deduplicateBy)
-    ) \
-    .filter(
-        (f.col("id").cast("int").isNotNull())
-        & (f.col("name").isNotNull())
-        & (f.col("row_number") == 1)
-    )
+.withColumn("name"                          # collapse unknowns into nulls
+    , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
+    .otherwise(f.col("name"))
+).withColumn("row_number"                   # sort by id and by created_at, which is an igdb field that represents when the record was added in the igdb
+    , f.row_number().over(deduplicateBy)
+).filter(
+    (f.col("id").cast("int").isNotNull())   # cast ensures we filter out any ids that are not numbers, for whatever reason
+    & (f.col("name").isNotNull())
+    & (f.col("row_number") == 1)
+)
 
 df_cleaned = df_filtered \
-    .withColumn("themeId", f.sha2(f.col("id").cast("string"), 256)) \
-    .withColumn("themeName", f.trim(f.col("name")))
-
-df_renamed = df_cleaned.select("themeId", "themeName")
-
+.selectExpr(
+    "sha2(cast(id as string), 256)                      as themeKey"
+    , "id                                               as themeId"
+    , "trim(name)                                       as themeName"
+)
 
 # CELL ********************
 
@@ -258,15 +235,15 @@ spark.sql("USE spark_catalog.silver")
 
 if (run_mode == "FULL"):
     spark.sql("drop table if exists silver.themes")
-    df_renamed.write.format("delta").saveAsTable("silver.themes")    
+    df_cleaned.write.format("delta").saveAsTable("silver.themes")    
 elif (spark.catalog.tableExists("silver.themes")):
-    df_renamed.write.format("delta").saveAsTable("silver.themes")
+    df_cleaned.write.format("delta").saveAsTable("silver.themes")
 else:    
     targetTable = DeltaTable.forName(spark, "silver.themes")
 
     targetTable.alias("t").merge(
-        source = df_renamed.alias("s"),
-        condition = "t.themeId = s.themeId"
+        source = df_cleaned.alias("s"),
+        condition = "t.themeKey = s.themeKey"
     ).whenMatchedUpdateAll(
         condition = "t.themeName != s.themeName"
     ).whenNotMatchedInsertAll(
@@ -279,63 +256,61 @@ else:
 
 # CELL ********************
 
-df1 = spark.read.format("delta").load(platforms_path).select("id", "name", "platform_type", "summary", "created_at")
-df2 = spark.read.format("delta").load(platform_types_path).select("id", "name", "created_at")
-
-
 deduplicateBy = Window.partitionBy("id").orderBy(f.col("created_at").desc())
 
-# platforms
+# Platforms
+df1 = spark.read.format("delta").load(platforms_path)
+
 df_filtered1 = df1 \
-    .withColumn("name"
-        , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
-        .otherwise(f.col("name"))
-    ) \
-    .withColumn("row_number"
-        , f.row_number().over(deduplicateBy)
-    ) \
-    .filter(
-        (f.col("id").cast("int").isNotNull())
-        & (f.col("name").isNotNull())
-        & (f.col("row_number") == 1)
-    )
+.withColumn("name"                          # collapse unknowns into nulls
+    , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
+    .otherwise(f.col("name"))
+).withColumn("row_number"                   # sort by id and by created_at, which is an igdb field that represents when the record was added in the igdb
+    , f.row_number().over(deduplicateBy)
+).filter(
+    (f.col("id").cast("int").isNotNull())   # cast ensures we filter out any ids that are not numbers, for whatever reason
+    & (f.col("name").isNotNull())
+    & (f.col("row_number") == 1)
+)
 
 df_cleaned1 = df_filtered1 \
-    .withColumn("platformId", f.sha2(f.col("id").cast("string"), 256)) \
-    .withColumn("platformName", f.trim(f.col("name"))) \
-    .withColumn("platformTypeId", f.col("platform_type"))
+.selectExpr(
+    "sha2(cast(id as string), 256)                      as platformKey"
+    , "id                                               as platformId"  
+    , "trim(name)                                       as platformName"
+    , "platform_type                                    as platformTypeId"
+)
 
-# platformTypes
+# Platform Types
+df2 = spark.read.format("delta").load(platform_types_path)
+
 df_filtered2 = df2 \
-    .withColumn("name"
-        , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
-        .otherwise(f.col("name"))
-    ) \
-    .withColumn("row_number"
-        , f.row_number().over(deduplicateBy)
-    ) \
-    .filter(
-        (f.col("id").cast("int").isNotNull())
-        & (f.col("name").isNotNull())
-        & (f.col("row_number") == 1)
-    )
+.withColumn("name"                          # collapse unknowns into nulls
+    , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
+    .otherwise(f.col("name"))
+).withColumn("row_number"                   # sort by id and by created_at, which is an igdb field that represents when the record was added in the igdb
+    , f.row_number().over(deduplicateBy)
+).filter(
+    (f.col("id").cast("int").isNotNull())   # cast ensures we filter out any ids that are not numbers, for whatever reason
+    & (f.col("name").isNotNull())
+    & (f.col("row_number") == 1)
+)
 
+# Consolidate
 df_cleaned2 = df_filtered2 \
-    .withColumn("platformTypeId", f.col("id")) \
-    .withColumn("platformTypeName", f.trim(f.col("name")))
+.selectExpr(
+    "id                                                 as platformTypeId"
+    , "trim(name)                                       as platformType"
+)
 
 df_cleaned = df_cleaned1.alias("pl") \
     .join(df_cleaned2.alias("plt") \
-        ,f.col("pl.platformTypeId") == f.col("plt.platformTypeId"))
+        ,f.col("pl.platformTypeId") == f.col("plt.platformTypeId")) \
+    .drop("platformTypeId")
 
-df_renamed = df_cleaned.select("platformId", "platformName", "summary", "platformTypeName")
+columns_to_hash = [c for c in df_cleaned.columns if c != 'platformKey']
 
-columns_to_hash = list(df_renamed.columns)
-columns_to_hash.remove("platformId")
-
-df_hashed = df_renamed.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
-
-df_hashed.show(n=10)
+df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
 
 # CELL ********************
 
@@ -351,9 +326,152 @@ else:
 
     targetTable.alias("t").merge(
         source = df_hashed.alias("s"),
-        condition = "t.platformId = s.platformId"
+        condition = "t.platformKey = s.platformKey"
     ).whenMatchedUpdateAll(
-        condition = "t.has != s.hash"
+        condition = "t.hash != s.hash"
     ).whenNotMatchedInsertAll(
     ).execute()
 
+
+# MARKDOWN ********************
+
+# ## silver.externalGames
+# 
+# ### ToDo
+# 
+# - [ ]: add a lookup to insert the surrogate key for game id
+
+# CELL ********************
+
+deduplicateBy = Window.partitionBy("id").orderBy(f.col("created_at").desc())
+
+# lookup tables
+df_silverGames = spark.read.format("delta").load(silverGames_path).select("gameKey", "gameId", "genreId", "themeId", "platformId")
+df_silverGenres = spark.read.format("delta").load(silverGenres_path).select("genreKey", "genreId")
+df_silverThemes = spark.read.format("delta").load(silverThemes_path).select("themeKey", "themeId")
+df_silverPlatforms = spark.read.format("delta").load(silverPlatforms_path).select("platformKey", "platformId")
+
+# CELL ********************
+
+# External Games
+df1 = spark.read.format("delta").load(external_games_path)
+
+df_filtered1 = df1 \
+.withColumn("name"                          # collapse unknowns into nulls
+    , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
+    .otherwise(f.col("name"))
+).withColumn("row_number"                   # sort by id and by created_at, which is an igdb field that represents when the record was added in the igdb
+    , f.row_number().over(deduplicateBy)
+).filter(
+    (f.col("id").cast("int").isNotNull())   # cast ensures we filter out any ids that are not numbers, for whatever reason
+    & (f.col("name").isNotNull())
+    & (f.col("row_number") == 1)
+)
+
+# lookup gameKey and platformKey
+df_lookups = df_filtered1.alias("eg") \
+    .join(df_silverGames.alias("g") \
+          , f.col("eg.game") == f.col("g.gameId"), "left") \
+    .join(df_silverPlatforms.alias("p") \
+          , f.col("eg.platform") == f.col("p.platformId"), "left")
+
+df_cleaned1 = df_lookups \
+.selectExpr(
+    "sha2(cast(id as string), 256)                      as egKey"
+    , "id                                               as egId"
+    , "trim(name)                                       as egName"
+    , "uid                                              as eId"
+    , "gameKey"
+    , "platformKey"
+    , "external_game_source                             as egSourceId"
+    , "game                                             as GameId"
+    , "platform                                         as platformId"
+
+)
+
+# External Game Sources
+df2 = spark.read.format("delta").load(external_game_sources_path)
+
+df_filtered2 = df2 \
+.withColumn("name"                          # collapse unknowns into nulls
+    , f.when(f.col("name").isin("", "na", "n/a", "not available", "unknown", "null"), None)
+    .otherwise(f.col("name"))
+).withColumn("row_number"                   # sort by id and by created_at, which is an igdb field that represents when the record was added in the igdb
+    , f.row_number().over(deduplicateBy)
+).filter(
+    (f.col("id").cast("int").isNotNull())   # cast ensures we filter out any ids that are not numbers, for whatever reason
+    & (f.col("name").isNotNull())
+    & (f.col("row_number") == 1)
+)
+
+df_cleaned2 = df_filtered2 \
+.selectExpr(
+    "id                                                 as egSourceId"
+    , "trim(name)                                       as egSourceName"
+)
+
+# Consolidate external games with external game sources
+df_cleaned = df_cleaned1.alias("eg") \
+    .join(df_cleaned2.alias("egs") \
+        ,f.col("eg.egSourceId") == f.col("egs.egSourceId")) \
+    .drop("egSourceId")
+
+columns_to_hash = [c for c in df_cleaned.columns if c != 'egKey']
+
+df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
+
+# CELL ********************
+
+spark.sql("USE spark_catalog.silver")
+
+if (run_mode == "FULL"):
+    spark.sql("drop table if exists silver.externalGames")
+    df_hashed.write.format("delta").saveAsTable("silver.externalGames")    
+elif (spark.catalog.tableExists("silver.externalGames")):
+    df_hashed.write.format("delta").saveAsTable("silver.externalGames")
+else:    
+    targetTable = DeltaTable.forName(spark, "silver.externalGames")
+
+    targetTable.alias("t").merge(
+        source = df_hashed.alias("s"),
+        condition = "t.platformId = s.platformId"
+    ).whenMatchedUpdateAll(
+        condition = "t.hash != s.hash"
+    ).whenNotMatchedInsertAll(
+    ).execute()
+
+
+# MARKDOWN ********************
+
+# # Bridge Table Creation
+
+# CELL ********************
+
+spark.sql("USE spark_catalog.silver")
+
+# Genres
+df_explodedGenres = df_silverGames.alias("g") \
+    .withColumn("genreIdFlattened", f.explode(f.from_json(f.col("g.genreId"), "array<int>"))) \
+    .join(df_silverGenres.alias("gen") \
+          , f.col("genreIdFlattened") == f.col("gen.genreId"), "left")
+
+spark.sql("drop table if exists silver.bridgeGameGenres")
+df_explodedGenres.select("gameKey", "genreKey").write.format("delta").mode("overwrite").saveAsTable("silver.bridgeGameGenres")
+
+# Themes
+df_explodedThemes = df_silverGames.alias("g") \
+    .withColumn("themeIdFlattened", f.explode(f.from_json(f.col("g.themeId"), "array<int>"))) \
+    .join(df_silverThemes.alias("t") \
+          , f.col("themeIdFlattened") == f.col("t.themeId"), "left")
+
+spark.sql("drop table if exists silver.bridgeGameThemes")
+df_explodedThemes.select("gameKey", "themeKey").write.format("delta").mode("overwrite").saveAsTable("silver.bridgeGameThemes")
+
+# Platforms
+df_explodedPlatforms = df_silverGames.alias("g") \
+    .withColumn("platformIdFlattened", f.explode(f.from_json(f.col("g.platformId"), "array<int>"))) \
+    .join(df_silverPlatforms.alias("p") \
+          , f.col("platformIdFlattened") == f.col("p.platformId"), "left")
+
+spark.sql("drop table if exists silver.bridgeGamePlatforms")
+df_explodedPlatforms.select("gameKey", "platformKey").write.format("delta").mode("overwrite").saveAsTable("silver.bridgeGamePlatforms")

@@ -33,6 +33,13 @@ import time
 from pyspark.sql import functions as f
 from pyspark.sql.types import ArrayType
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 # Parameters
@@ -46,11 +53,10 @@ run_mode = "FULL"
 ## maxLimit
 ### acts as a hard limit to the # of records. useful for testing. 
 ### set to 0 to extract everything
-maxLimit = 10000
+maxLimit = 0
 
 # a list containing the tables to be loaded
-# table_load = ["games", "genres", "themes", "platforms", "platform_types"]
-table_load = ["external_game_sources"]
+table_load = ["games", "genres", "themes", "platforms", "platform_types", "external_games", "external_game_sources"]
 
 # Yes bad practice I'm aware
 headers = {
@@ -60,6 +66,13 @@ headers = {
 }
 
 baseURL = 'https://api.igdb.com/v4/'
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -114,7 +127,7 @@ table_configs = [
         "endpoint": "external_games",
         "target_table": "bronze.external_games",
         "fields": [],
-        "exclude": []
+        "exclude": ["category", "media"]
     },
     {
         "endpoint": "external_game_sources",
@@ -124,10 +137,24 @@ table_configs = [
     }            
 ]
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 response = requests.post('https://api.igdb.com/v4/external_game_sources', headers=headers, data='fields checksum,created_at,name,updated_at;')
 print ("response: %s" % str(response.json()))
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -201,6 +228,13 @@ def requestData(endpoint, limit, fields = [], exclude = []):
 
     print(f'\tEND: source processing; Loaded {len(resultList)} total {endpoint} records')
     return resultList
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -292,3 +326,10 @@ else:
         print(f'\tEND: Ended SQL Processing for {current_config["target_table"]}')
         print(f"\END: Processed {current_config['endpoint']}!")
     print(f"END: Processed endpoints: {table_load}!")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }

@@ -40,23 +40,28 @@ from pyspark.sql.types import ArrayType
 # META   "language_group": "synapse_pyspark"
 # META }
 
-# CELL ********************
+# MARKDOWN ********************
+
+# ## Parameters
+# - **run_Mode**
+#   - FULL - drops the target table and recreates it entirely
+#   - INCREMENTAL - upsert via change detection
+#   - NONE - debugging purposes only
+# 
+# - **maxLimit**
+#   - acts as a hard limit to the # of records. useful for testing. 
+#   - set to 0 to extract everything
+
+# PARAMETERS CELL ********************
 
 # Parameters
-
-## run_Mode
-### FULL - drops the target table and recreates it entirely
-### INCREMENTAL - upsert via change detection
-### NONE - debugging purposes only
 run_mode = "FULL"
 
-## maxLimit
-### acts as a hard limit to the # of records. useful for testing. 
-### set to 0 to extract everything
 maxLimit = 0
 
 # a list containing the tables to be loaded
-table_load = ["games", "genres", "themes", "platforms", "platform_types", "external_games", "external_game_sources"]
+# table_load = ["games", "genres", "themes", "platforms", "platform_types", "external_games", "external_game_sources"]
+table_load = ["platform_types"]
 
 # Yes bad practice I'm aware
 headers = {
@@ -74,29 +79,25 @@ baseURL = 'https://api.igdb.com/v4/'
 # META   "language_group": "synapse_pyspark"
 # META }
 
+# MARKDOWN ********************
+
+# **table_configs**:
+# - this is a list of dictionaries used in the main request loop
+# - **endpoint**: appended to the igdb api url in the request function
+# - **target_table**: used in the merge into statement
+# - **fields**: used if specific columns must be extracted (or it's more efficient to pull specific columns than * exclude)
+# - **exclude**: used to exclude deprecated columns as per the igdb endpoint guide. null means we're taking every column
+
 # CELL ********************
 
 # set this session to allow autoMerge, meaning new columns will be added to the bronze tables if the source provides them
 spark.sql("SET spark.databricks.delta.schema.autoMerge.enabled = true")
 
-# a list of dictionaries used in the main request loop.
-## endpoint: appended to the igdb api url in the request function
-## target_table: used in the merge into statement
-## fields: used if specific columns must be extracted (or it's more efficient to pull specific columns than * exclude)
-## exclude: used to exclude deprecated columns as per the igdb endpoint guide. null means we're taking every column
 table_configs = [
     {
         "endpoint": "games",
         "target_table": "bronze.games",
-        # "fields" : [
-        #     "age_ratings", "aggregated_rating", "aggregated_rating_count", "alternative_names", "dlcs", 
-        #     "expanded_games", "expansions", "external_games", "first_release_date", "game_modes", 
-        #     "game_status", "game_type", "genres", "involved_companies", "name", 
-        #     "parent_game", "platforms", "rating", "rating_count","standalone_expansions", 
-        #     "storyline", "summary", "themes", "total_rating", "total_rating_count"
-        # ],
         "fields": [],
-        # "exclude": []
         "exclude": ["category", "collection", "follows", "status"]
     },
     {
@@ -136,18 +137,6 @@ table_configs = [
         "exclude": []
     }            
 ]
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-response = requests.post('https://api.igdb.com/v4/external_game_sources', headers=headers, data='fields checksum,created_at,name,updated_at;')
-print ("response: %s" % str(response.json()))
 
 # METADATA ********************
 
@@ -244,7 +233,10 @@ def requestData(endpoint, limit, fields = [], exclude = []):
 
 if run_mode == 'NONE':
     print("SKIP: run_mode is 'NONE'. Skipping all processing.")
+    mssparkutils.notebook.exit(json.dumps({"processed_any": False}))
 else:
+    total_inserted_rows = 0
+    total_updated_rows = 0
     print(f"START: Processing the following endpoints: {table_load}...")
     print(f'PARAMETERS:\n - run_mode = {run_mode}')
     print(f' - maxLimit = {maxLimit}') if maxLimit != 0  else ' - no maxLimit set, loading everything'
@@ -298,7 +290,11 @@ else:
             spark.sql(f"drop table if exists {current_config['target_table']}")
             df_hashed.write.mode("overwrite").saveAsTable(f"{current_config['target_table']}")
 
-            print(f"\t\tEND: {current_config['target_table']} recreated successfully!")
+            inserted_rows = spark.sql(f"select count(*) as rowCount from {current_config['target_table']}").collect()[0][0]
+
+            total_inserted_rows += inserted_rows
+            
+            print(f"\t\tEND: {current_config['target_table']} recreated successfully! Total records: {inserted_rows}")
         else:
             # write and execute the merge
             print(f"\t\tSTART: Merging {current_config['target_table']}...")
@@ -321,11 +317,22 @@ else:
             inserted_rows = results_row['num_inserted_rows']
             updated_rows = results_row['num_updated_rows']
 
+            total_inserted_rows += inserted_rows
+            total_updated_rows += updated_rows
+
             print(f"\t\tEND: Merge ended for {current_config['target_table']}. Inserted: {inserted_rows}, Updated: {updated_rows}")
 
         print(f'\tEND: Ended SQL Processing for {current_config["target_table"]}')
         print(f"\END: Processed {current_config['endpoint']}!")
     print(f"END: Processed endpoints: {table_load}!")
+
+    result = {
+        "processed_any": total_inserted_rows > 0 or total_updated_rows > 0 or run_mode == 'FULL',
+        "total_inserted": total_inserted_rows,
+        "total_updated": total_updated_rows
+    }
+
+    mssparkutils.notebook.exit(json.dumps(result))
 
 # METADATA ********************
 

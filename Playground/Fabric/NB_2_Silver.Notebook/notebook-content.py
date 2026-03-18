@@ -30,6 +30,13 @@ from pyspark.sql import functions as f
 from pyspark.sql.window import Window
 from delta.tables import *
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 games_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/bronze/games"
@@ -44,13 +51,40 @@ silverGames_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalyt
 silverGenres_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/silver/genres"
 silverThemes_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/silver/themes"
 silverPlatforms_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/silver/platforms"
-run_mode = "FULL" # FULL or INCREMENTAL
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Parameters
+# - **run_Mode**
+#   - FULL - drops the target table and recreates it entirely
+#   - INCREMENTAL - upsert via change detection
+
+# MARKDOWN ********************
+
+
+# PARAMETERS CELL ********************
+
+run_mode = "INCREMENTAL" # FULL or INCREMENTAL
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
 # # Loading Silver Tables
 # 
-# Sanitizations to be performed:
+# Sanitizations performed:
 # - casting
 #   - proper date on released_date
 #   - rounding for ratings
@@ -61,6 +95,8 @@ run_mode = "FULL" # FULL or INCREMENTAL
 # - deduplicate
 # - create a surrogate key
 # - trimming
+# 
+# Lookup of surrogate keys is also performed, where applicable
 # 
 # Things I'm aware of that I'm not doing for now:
 # - SCD
@@ -123,8 +159,6 @@ df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for 
 
 spark.sql("USE spark_catalog.silver")
 
-# print(f"Current Database: {spark.catalog.currentDatabase()}")
-
 # recreate the table if run mode is full
 ## or create it if it doesn't exist
 ## or merge into it if it does exist
@@ -148,6 +182,13 @@ else:
         # Inserts all columns from source to target
     ).execute()
 
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -179,6 +220,13 @@ df_cleaned = df_filtered \
 )
 
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 spark.sql("USE spark_catalog.silver")
@@ -199,6 +247,13 @@ else:
     ).whenNotMatchedInsertAll(
     ).execute()
 
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -229,6 +284,13 @@ df_cleaned = df_filtered \
     , "trim(name)                                       as themeName"
 )
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 spark.sql("USE spark_catalog.silver")
@@ -249,6 +311,13 @@ else:
     ).whenNotMatchedInsertAll(
     ).execute()
 
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -312,6 +381,13 @@ columns_to_hash = [c for c in df_cleaned.columns if c != 'platformKey']
 
 df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 spark.sql("USE spark_catalog.silver")
@@ -333,6 +409,13 @@ else:
     ).execute()
 
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # ## silver.externalGames
@@ -350,6 +433,13 @@ df_silverGames = spark.read.format("delta").load(silverGames_path).select("gameK
 df_silverGenres = spark.read.format("delta").load(silverGenres_path).select("genreKey", "genreId")
 df_silverThemes = spark.read.format("delta").load(silverThemes_path).select("themeKey", "themeId")
 df_silverPlatforms = spark.read.format("delta").load(silverPlatforms_path).select("platformKey", "platformId")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -420,6 +510,13 @@ columns_to_hash = [c for c in df_cleaned.columns if c != 'egKey']
 
 df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 spark.sql("USE spark_catalog.silver")
@@ -440,6 +537,13 @@ else:
     ).whenNotMatchedInsertAll(
     ).execute()
 
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -475,3 +579,10 @@ df_explodedPlatforms = df_silverGames.alias("g") \
 
 spark.sql("drop table if exists silver.bridgeGamePlatforms")
 df_explodedPlatforms.select("gameKey", "platformKey").write.format("delta").mode("overwrite").saveAsTable("silver.bridgeGamePlatforms")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }

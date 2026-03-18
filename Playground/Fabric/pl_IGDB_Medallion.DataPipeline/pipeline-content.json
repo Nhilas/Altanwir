@@ -1,0 +1,172 @@
+{
+  "properties": {
+    "activities": [
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "d597e5f5-a8e9-8025-4f3a-2032214aa4f7",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "run_mode": {
+              "value": {
+                "value": "@pipeline().parameters.run_mode",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "maxLimit": {
+              "value": {
+                "value": "@pipeline().parameters.max_limit",
+                "type": "Expression"
+              },
+              "type": "int"
+            },
+            "table_load": {
+              "value": {
+                "value": "@pipeline().parameters.table_load",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 60,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "NB_Bronze_Ingest",
+        "dependsOn": []
+      },
+      {
+        "type": "IfCondition",
+        "typeProperties": {
+          "expression": {
+            "value": "@bool(json(activity('NB_Bronze_Ingest').output.result.exitValue).processed_any)\n",
+            "type": "Expression"
+          },
+          "ifTrueActivities": [
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "8c122953-ce87-bc4d-4258-f36b6cc8be58",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "run_mode": {
+                    "value": {
+                      "value": "@pipeline().parameters.run_mode",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
+              },
+              "policy": {
+                "timeout": "0.12:00:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "NB_Silver_Clean",
+              "dependsOn": [
+                {
+                  "activity": "Poverty Wait 120s",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "TridentNotebook",
+              "typeProperties": {
+                "notebookId": "62120cd3-415a-9906-4223-2922ac104491",
+                "workspaceId": "00000000-0000-0000-0000-000000000000"
+              },
+              "policy": {
+                "timeout": "0.12:00:00",
+                "retry": 0,
+                "retryIntervalInSeconds": 30,
+                "secureInput": false,
+                "secureOutput": false
+              },
+              "name": "NB_Gold_Analyze",
+              "dependsOn": [
+                {
+                  "activity": "Poverty Wait2 120s",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "Wait",
+              "typeProperties": {
+                "waitTimeInSeconds": 120
+              },
+              "name": "Poverty Wait 120s",
+              "description": "Wait 2 minutes to give the previous cluster time to close because my trial capacity only lets me play with one cluster at a time =')",
+              "dependsOn": []
+            },
+            {
+              "type": "Wait",
+              "typeProperties": {
+                "waitTimeInSeconds": 120
+              },
+              "name": "Poverty Wait2 120s",
+              "description": "Wait 2 minutes to give the previous cluster time to close because my trial capacity only lets me play with one cluster at a time =')",
+              "dependsOn": [
+                {
+                  "activity": "NB_Silver_Clean",
+                  "dependencyConditions": [
+                    "Succeeded"
+                  ]
+                }
+              ]
+            }
+          ],
+          "ifFalseActivities": []
+        },
+        "name": "Change Detection",
+        "dependsOn": [
+          {
+            "activity": "NB_Bronze_Ingest",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "retryCounter": {
+        "type": "int",
+        "defaultValue": 0
+      },
+      "run_mode": {
+        "type": "string",
+        "defaultValue": "FULL"
+      },
+      "table_load": {
+        "type": "string",
+        "defaultValue": [
+          "games",
+          "genres",
+          "themes",
+          "platforms",
+          "platform_types",
+          "external_games",
+          "external_game_sources"
+        ]
+      },
+      "max_limit": {
+        "type": "int",
+        "defaultValue": 0
+      }
+    }
+  }
+}

@@ -39,7 +39,8 @@
 # MAGIC     , priority VARCHAR(10)
 # MAGIC     , schedule varchar(10)
 # MAGIC     , load_status varchar(10)
-# MAGIC     , most_recent_execution int
+# MAGIC     , last_execution_id int
+# MAGIC     , last_execution_time TIMESTAMP
 # MAGIC );
 # MAGIC 
 

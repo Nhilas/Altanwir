@@ -55,7 +55,7 @@ from pyspark.sql.types import ArrayType
 # PARAMETERS CELL ********************
 
 # Parameters
-run_mode = "FULL"
+run_mode = "INCREMENTAL"
 
 maxLimit = 0
 

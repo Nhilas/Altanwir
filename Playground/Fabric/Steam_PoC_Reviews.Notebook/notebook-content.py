@@ -94,7 +94,7 @@ print(f"\nSuccess! We collected {len(my_tracer_reviews)} reviews for our tracer 
 
 import requests
 import json
-import time # We need to sleep between requests so Steam doesn't get mad
+import time
 
 from pyspark.sql import functions as f
 from pyspark.sql.window import Window
@@ -128,6 +128,7 @@ path_control = 'abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.
 # MAGIC     app_id INT not null
 # MAGIC     , priority VARCHAR(10)
 # MAGIC     , schedule varchar(10)
+# MAGIC     , load_type varchar(10)
 # MAGIC     , load_status varchar(10)
 # MAGIC     , last_execution_id int
 # MAGIC     , last_execution_time TIMESTAMP
@@ -141,10 +142,10 @@ path_control = 'abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.
 
 # spark.sql("truncate table control.loadorchestratorreviews")
 
-# spark.sql("""insert into control.loadorchestratorreviews (app_id, load_status)
-#         values ( 39500, 'pending'),
-#           ( 48231, 'skip'),
-#           ( 184571, 'pending')""")
+# spark.sql("""insert into control.loadorchestratorreviews (app_id, load_type, load_status)
+#         values ( 39500, 'initial', 'pending'),
+#           ( 48231, 'initial', 'skip'),
+#           ( 184571, 'initial', 'pending')""")
 
 # spark.sql("truncate table control.loadcontrolreviews")
 
@@ -215,52 +216,27 @@ df_joined.show()
 # 
 # #### requestSteamReviews
 # 
-# - Note on the use of *updateControl*: I feel icky to use it here, because logging is handled outside of this function in the main loop
-# - However, the main loop requires an as up-to-date as possible last_retrieved_cursor, so for robustness sake i am saving it here after every batch of 100 reviews
-# 
 # **Parameters**
+# - session
 # - app_id
-# - execution_id
 # - cursor
-# - max_pages (x)
 # 
 # **Returns**
-# - execution_status ('success' or 'failed + error message')
-# - execution_start_time
-# - execution_duration
-# - last_retrieved_timestamp
-# - last_retrieved_cursor
+# - reviews_list
+# - (optional) response_message
 # 
 # **Pseudocode**
-# - set execution_start_time
-# - check for cursor
-#   - set "*" if no cursor, else use cursor
-# - for page in max_pages ( [x] )
-#   - if we have a valid response
-#     - batch_reviews.extend(reviews)
-#     - break if no next cursor or if no new reviews (we reached the end)
-#     - get next_cursor
-#     - save 100 results as a json in {path}
-#     - courtesy wait (pls don't ban me steam pls gaben i've been a good boy)
-#     - update **moving variables**
-#       - execution_duration
-#       - retrieved_reviews
-#       - last_retrieved_timestamp
-#       - last_retrieved_cursor
-#     - *updateControl* (app_id, execution_id)
-#       - set **moving variables**
-#   - if we do not have a valid response
-#     - update execution_duration
-#     - *updateControl* (app_id, execution_id)
-#       - execution_duration
-#       - execution_status ( failed + error code + error message)
-# - *updateControl* (app_id, execution_id)
-#   - update execution_status = 'success'
+# - if valid response
+#   - returns the response object
+# - if no valid response
+#   - response_message = 'failed + error code + error message'
+# - courtesy wait    
 # 
 # #### updateOrchestrator
 # 
 # **Parameters**
 # - app_id
+# - (optional) load_type
 # - (optional) load_status
 # - (optional) last_execution_id
 # - (optional) last_execution_time
@@ -271,7 +247,7 @@ df_joined.show()
 # 
 # **Pseudocode**
 # - literally just updates control.loadorhcestratorreviews
-# - sets load_status = in-progress / completed where app_id = app_id
+# - sets load_status = in-progress / completed where app_id = app_id and load_type = load_type (if it exists)
 # - if last_execution_id is given as a parameter
 #   - sets it for app_id
 #   - sets last_execution
@@ -291,11 +267,14 @@ df_joined.show()
 # **Pseudocode**
 # - sha2 hash the concatenation of app_id & execution_start_time
 # - turn the hash into an uuid
+# - path = Fabric/Files/Steam/Reviews/{execution_type}/{app_id}/{execution_id}
 # - insert into control.loadcontrolreviews
 #   - execution_id
 #   - app_id
 #   - execution_start_time
+#   - execution_type
 #   - execution_status = 'in_progress'
+#   - path
 # 
 # #### checkControl
 # 
@@ -328,27 +307,53 @@ df_joined.show()
 # **Pseudocode**
 # - simply updates control.loadcontrolreviews using parameters
 # 
-# ### Pseudocode loop
+# ### Orchestration Loop
+# 
+# - open session and get session object
 # - for games in game loop, limit [y] (top y from control.loadorchestratorreviews where load_status in ('pending', 'in-progress') order by last_execution_time asc )
-#    - if *checkControl* (app_id) (returns last_retrieved_cursor) is null (i.e. it did not find a cursor)
-#      - set cursor = "*" else cursor = last_retrieved_cursor
-#      - *insertControl* (app_id, execution_type, execution_start_time) (returns execution_id)
-#        - app_id / execution_start_time
-#        - execution_start_time
-#        - type = 'initial'
-#        - status = 'in-progress'    
-#      - try
-#          - set path = Fabric/Files/Steam/Reviews/Initial/{app_id}/{execution_id}
-#          - *requestSteamReviews*(app_id, cursor, limit [x]) (returns execution_status, execution_start_time, execution_duration)
-#            - save 100 results as a json in {path}/{batchNumber}.json [x] times
-#            - this function handles updating the control table, for added robustness
-#        - if empty (i.e. no more reviews)
-#         - *updateOrchestrator*: load_status = 'completed'
-#      - catch 
-#        - uhhhhm. I guess *updateControl* (app_id, execution_id) ?
-#          - set execution_status = ( fail + error code + error message)
-#      - *updateOrchestrator*
-#        - set last_execution_id to the inserted execution_id & last_execution_time (ONLY IF SUCCESSFUL)
+#   - set execution_start_time, load_type = 'initial'
+#   - *insertControl* (app_id, execution_type, execution_start_time) (returns execution_id)
+#     - app_id / execution_start_time
+#     - execution_start_time
+#     - type = 'initial'
+#     - status = 'in-progress'
+#     - path = Fabric/Files/Steam/Reviews/{execution_type}/{app_id}/{execution_id}
+#   - *updateOrchestrator* (app_id, load_type, load_status = 'in-progress', last_execution_id, last_execution_time)    
+#   - if *checkControl* (app_id) (returns last_retrieved_cursor) is null (i.e. it did not find a cursor)
+#     - set cursor = "*" else cursor = last_retrieved_cursor
+#   - init execution_duration, execution_status, reviews_list, x starts at 1 up until the defined rate limit
+#   - while [x]
+#     - try 
+#       - *requestSteamReviews*(app_id, cursor) (returns reponse, response_message (only if there is an error))
+#       - if response_message exists ( **case: the function returned an error** )
+#         - *updateControl*(app_id, execution_id) (execution_status = response_message)
+#         - break 
+# 
+#       - data = response.json()
+#       - reviews = data.get("reviews", [])
+#       - reviews_list.extend(reviews)      
+#       - get retrieved_reviews, last_retrieved_timestamp, last_retrieved_cursor from reviews
+#         - retrieved_reviews = len(reviews_list)
+#         - last_retrieved_timestamp = the timestamp_created of the last review in reviews
+#         - last_retrieved_cursor = data.get("cursor",[])
+# 
+#       - if retrieved_reviews > 0 & last_retrieved_cursor is not null ( **case: the loop is valid and it continues** )
+#         - save reviews in path/{x}.json
+#         - set execution_duration
+#         - *updateControl*(app_id, execution_id) (execution_duration, execution_status = 'running', retrieved_reviews, last_retrieved_timestamp, last_retrieved_cursor)
+#         - x += 1
+#         - cursor = last_retrieved_cursor
+# 
+#       - if retrieved_reviews == 0 or last_retrieved_cursor is null ( **case: the loop has ended** )     
+#         - *updateOrchestrator* (app_id, load_type, load_status = 'completed)   
+#         - break
+# 
+#     - catch
+#       - set execution_duration
+#       - *updateControl*(app_id, cursor) (execution_duration, execution_status = 'failed + error')
+#       - break
+#   - *updateControl*(app_id, execution_id) (execution_status = 'success')
+
 
 # CELL ********************
 
@@ -372,59 +377,66 @@ for game in games:
 
 # MARKDOWN ********************
 
-# ## Request Function
-# **TO DO**:
-# - Wrap this in a session
+# ## Functions
 
 # CELL ********************
 
-def requestSteamReviews(app_id, last_cursor = ''):
+def requestSteamReviews(app_id, last_cursor, session_instance):
 
-    app_id = "105600" # Terraria
     base_url = f"https://store.steampowered.com/appreviews/{app_id}?json=1"
 
-    # Steam uses '*' to mean "give me the very first page"
     params = {
         "filter": "recent",
         "num_per_page": 100,
-        "cursor": {"*" if last_cursor != '' else last_cursor} 
+        "cursor": {last_cursor}
     }
 
-    my_tracer_reviews = []
-    max_pages = 3 # Hard limit so we don't sit here all day
+    print(f"START requestSteamReviews for appId {app_id}, cursor = {last_cursor}")
 
-    for page in range(max_pages):
-        print(f"Fetching page {page + 1}...")
-        response = requests.get(base_url, params=params)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Grab the reviews array from the response
-            reviews = data.get("reviews", [])
-            my_tracer_reviews.extend(reviews)
-            
-            # Grab the cursor for the next page
-            next_cursor = data.get("cursor")
-            print(f" -> Grabbed {len(reviews)} reviews. Next cursor is: {next_cursor[:10]}...")
-            
-            # If no cursor is returned, or we got 0 reviews, we hit the end!
-            if not next_cursor or len(reviews) == 0:
-                print("No more reviews to fetch.")
-                break
-                
-            # Update our parameters dictionary with the new cursor for the next loop iteration
-            params["cursor"] = next_cursor
-            
-            # Sleep for 1.5 seconds to respect the API rate limits
-            time.sleep(1.5)
-        else:
-            print(f"Failed! Status Code: {response.status_code}")
-            break
+    response = session_instance.requests.get(base_url, params=params)
 
-    print(f"\nSuccess! We collected {len(my_tracer_reviews)} reviews for our tracer bullet.")
-    return my_tracer_reviews
+    if response.status_code == 200:
+        time.sleep(1)
+        print(f"END requestSteamReviews for appId {app_id}")
 
+        return response
+    else:
+        response_message = f"Failed: {response.status_code} -- {response.text}"
+        print(f"STOP requestSteamReviews: {response_message}")
+        return response_message
+
+
+# CELL ********************
+
+def updateOrchestrator(app_id, load_type = None, load_status = None, last_execution_id = None, last_execution_time = None):
+    
+    set_predicates = [
+            f"load_status = '{load_status}'" if load_status else '',
+            f"last_execution_id = {last_execution_id}" if last_execution_id else '',
+            f"last_execution_time = '{last_execution_time}'" if last_execution_time else '',
+    ]
+    set_list = [pred for pred in set_predicates if pred]
+
+    query = f"""
+            update control.loadorchestratorreviews
+            set {", ".join(set_list)}
+            where app_id = {app_id}
+                {("and load_type = '" + load_type + "'") if load_type else ''}
+            """
+    spark.sql(query)
+
+#    df_query_results = spark.sql(query)
+
+#    return df_query_results
+
+updateOrchestrator(39500, 'initial', 'wip', '1', '2026-03-22 10:10:01.392')
+
+
+# CELL ********************
+
+# MAGIC %%sql
+# MAGIC 
+# MAGIC select * from control.loadorchestratorreviews
 
 # MARKDOWN ********************
 

@@ -36,10 +36,11 @@
 # MAGIC 
 # MAGIC create table loadOrchestratorReviews (
 # MAGIC     app_id INT not null
-# MAGIC     , priority VARCHAR(10)
-# MAGIC     , schedule varchar(10)
-# MAGIC     , load_status varchar(10)
-# MAGIC     , last_execution_id int
+# MAGIC     , priority STRING
+# MAGIC     , schedule STRING
+# MAGIC     , load_type STRING
+# MAGIC     , load_status STRING
+# MAGIC     , last_execution_id STRING
 # MAGIC     , last_execution_time TIMESTAMP
 # MAGIC );
 # MAGIC 

@@ -22,164 +22,6 @@
 
 # MARKDOWN ********************
 
-# # Pseudocode
-# 
-# ## Definitions
-# - requestSteamReviews = function to get reviews from steam
-# - insertControl = function to insert a line in the control table. returns inserted execution_id
-# - checkControl = function to retrieve the most recent valid last_retrieved_cursor
-# - updateOrchestrator = function to update orchestrator table
-# - updateControl = function to save execution details in the control table
-# - {path} = Fabric/Files/Steam/Reviews/{Daily, Weekly, Monthly, Initial}/{app_id}/{execution_id}/{batch_no}.json
-# - **x** is a # we agree to use to extract reviews for a game at a rate of our chosing
-# - **game loop** = games with a 'pending' (i.e. to start) or 'in-progress' (i.e. partially loaded') load_status
-# - **y** = # of games processed at a time
-# 
-# ## Functions
-# 
-# ### requestSteamReviews
-# 
-# **Parameters**
-# - session
-# - app_id
-# - cursor
-# 
-# **Returns**
-# - reviews_list
-# - (optional) response_message
-# 
-# **Pseudocode**
-# - if valid response
-#   - returns the response object
-# - if no valid response
-#   - response_message = 'failed + error code + error message'
-# - courtesy wait    
-# 
-# ### updateOrchestrator
-# 
-# **Parameters**
-# - app_id
-# - (optional) load_type
-# - (optional) load_status
-# - (optional) last_execution_id
-# - (optional) last_execution_time
-# 
-# **Returns**
-# - (optional) last_execution_id
-# - (optional) last_execution_time
-# 
-# **Pseudocode**
-# - literally just updates control.loadorhcestratorreviews
-# - sets load_status = in-progress / completed where app_id = app_id and load_type = load_type (if it exists)
-# - if last_execution_id is given as a parameter
-#   - sets it for app_id
-#   - sets last_execution
-# - else
-#   - returns last_execution_id & last_execution_time, if it exists
-# 
-# ### insertControl
-# 
-# **Parameters**
-# - app_id
-# - execution_type
-# - execution_start_time
-# 
-# **Returns**
-# - execution_id
-# 
-# **Pseudocode**
-# - sha2 hash the concatenation of app_id & execution_start_time
-# - turn the hash into an uuid
-# - path = Fabric/Files/Steam/Reviews/{execution_type}/{app_id}/{execution_id}
-# - insert into control.loadcontrolreviews
-#   - execution_id
-#   - app_id
-#   - execution_start_time
-#   - execution_type
-#   - execution_status = 'in_progress'
-#   - path
-# 
-# ### checkControl
-# 
-# **Parameters**
-# - app_id
-# - (optional) execution_id
-# 
-# **Returns**
-# - last_retrieved_cursor
-# 
-# **Pseudocode**
-# - Searches for the app_id and optionally execution_id in control.loadcontrolreviews
-# - returns the most recent last_retrieved_cursor
-#   - where execution_status != 'running' / 'in-progress'
-# 
-# ### updateControl
-# 
-# **Parameters**
-# - app_id
-# - execution_id
-# - (optional) execution_duration
-# - (optional) execution_status
-# - (optional) retrieved_reviews
-# - (optional) last_retrieved_timestamp
-# - (optional) last_retrieved_cursor
-# 
-# **Returns**
-# - nothing
-# 
-# **Pseudocode**
-# - simply updates control.loadcontrolreviews using parameters
-# 
-# ## Orchestration Loop
-# 
-# - open session and get session object
-# - for games in game loop, limit [y] (top y from control.loadorchestratorreviews where load_status in ('pending', 'in-progress') order by last_execution_time asc )
-#   - set execution_start_time, load_type = 'initial'
-#   - *insertControl* (app_id, execution_type, execution_start_time) (returns execution_id)
-#     - app_id / execution_start_time
-#     - execution_start_time
-#     - type = 'initial'
-#     - status = 'in-progress'
-#     - path = Fabric/Files/Steam/Reviews/{execution_type}/{app_id}/{execution_id}
-#   - *updateOrchestrator* (app_id, load_type, load_status = 'in-progress', last_execution_id, last_execution_time)    
-#   - if *checkControl* (app_id) (returns last_retrieved_cursor) is null (i.e. it did not find a cursor)
-#     - set cursor = "*" else cursor = last_retrieved_cursor
-#   - init execution_duration, execution_status, reviews_list, x starts at 1 up until the defined rate limit
-#   - while [x]
-#     - try 
-#       - *requestSteamReviews*(app_id, cursor) (returns reponse, response_message (only if there is an error))
-#       - if response_message exists ( **case: the function returned an error** )
-#         - *updateControl*(app_id, execution_id) (execution_status = response_message)
-#         - break 
-# 
-#       - data = response.json()
-#       - reviews = data.get("reviews", [])
-#       - reviews_list.extend(reviews)      
-#       - get retrieved_reviews, last_retrieved_timestamp, last_retrieved_cursor from reviews
-#         - retrieved_reviews = len(reviews_list)
-#         - last_retrieved_timestamp = the timestamp_created of the last review in reviews
-#         - last_retrieved_cursor = data.get("cursor",[])
-# 
-#       - if retrieved_reviews > 0 & last_retrieved_cursor is not null ( **case: the loop is valid and it continues** )
-#         - save reviews in path/{x}.json
-#         - set execution_duration
-#         - *updateControl*(app_id, execution_id) (execution_duration, execution_status = 'running', retrieved_reviews, last_retrieved_timestamp, last_retrieved_cursor)
-#         - x += 1
-#         - cursor = last_retrieved_cursor
-# 
-#       - if retrieved_reviews == 0 or last_retrieved_cursor is null ( **case: the loop has ended** )     
-#         - *updateOrchestrator* (app_id, load_type, load_status = 'completed)   
-#         - break
-# 
-#     - catch
-#       - set execution_duration
-#       - *updateControl*(app_id, cursor) (execution_duration, execution_status = 'failed + error')
-#       - break
-#   - *updateControl*(app_id, execution_id) (execution_status = 'success')
-
-
-# MARKDOWN ********************
-
 # # Original Tracer Bullet Script
 # 
 # Don't touch it, it's sacred
@@ -187,7 +29,6 @@
 # CELL ********************
 
 import requests
-import json
 import time # We need to sleep between requests so Steam doesn't get mad
 
 app_id = "105600" # Terraria
@@ -284,7 +125,7 @@ print(f"\nSuccess! We collected {len(my_tracer_reviews)} reviews for our tracer 
 #     execution_type STRING,
 #     execution_status STRING,
 #     retrieved_reviews INT,
-#     last_retrieved_timestamp BIGINT,
+#     last_retrieved_timestamp TIMESTAMP,
 #     last_retrieved_cursor STRING,
 #     output_path STRING
 # );
@@ -326,91 +167,6 @@ print(f"\nSuccess! We collected {len(my_tracer_reviews)} reviews for our tracer 
 # META   "language_group": "synapse_pyspark"
 # META }
 
-# CELL ********************
-
-df_orchestrator = spark.read.format("delta").load(path_orchestrator)
-df_control = spark.read.format("delta").load(path_control)
-
-
-# CELL ********************
-
-df_orchestrator.show()
-df_control.show()
-
-# MARKDOWN ********************
-
-# ## Joining to get last_cursor
-# 
-# 1) Remove runs w/ no cursor; this means the run is full?
-# 2) Rank executions, grouped by app_id and ordered in descending execution
-
-# CELL ********************
-
-df_control = df_control \
-    .filter(df_control.last_retrieved_cursor.isNotNull()) \
-    .withColumn("rowNumber", f.row_number().over(Window.partitionBy("app_id").orderBy(f.col("execution_start_time").desc())))
-
-df_joined = df_orchestrator.alias("o").filter(f.col("o.load_status") == 'pending') \
-    .join(df_control.alias("c").filter(f.col("c.rowNumber") == 1) \
-        ,f.col("o.app_id") == f.col("c.app_id") \
-        ,"left"
-    ) \
-    .withColumn("steam_id", f.col("o.app_id"))  # idk how to solve the ambiguity of app_id existing in both dataframes so vOv
-
-# CELL ********************
-
-df_control.show()
-df_joined.show()
-
-# CELL ********************
-
-df_orchestrator = spark.read.format("delta").load(path_orchestrator)
-df_control = spark.read.format("delta").load(path_control)
-
-df_control = df_control \
-    .filter(df_control.last_retrieved_cursor.isNotNull()) \
-    .withColumn("rowNumber", f.row_number().over(Window.partitionBy("app_id").orderBy(f.col("execution_start_time").desc())))
-
-df_joined = df_orchestrator.alias("o").filter(f.col("o.load_status") == 'pending') \
-    .join(df_control.alias("c").filter(f.col("c.rowNumber") == 1) \
-        ,f.col("o.app_id") == f.col("c.app_id") \
-        ,"left"
-    ) \
-    .withColumn("steam_id", f.col("o.app_id"))  # idk how to solve the ambiguity of app_id existing in both dataframes so vOv
-
-df_control.show()
-df_joined.show()
-
-games = df_joined.select("steam_id", "most_recent_execution", "last_retrieved_timestamp", "last_retrieved_cursor").collect() # filter(df_orchestrator.load_status == 'pending').collect()
-
-print(games)
-
-for game in games: 
-    app_id = game['steam_id']
-    last_cursor = game['last_retrieved_cursor']
-
-    print(app_id)
-    print(last_cursor)
-
-
-# MARKDOWN ********************
-
-# ## Main loop playground
-
-# CELL ********************
-
-games = df_joined.select("steam_id", "most_recent_execution", "last_retrieved_timestamp", "last_retrieved_cursor").collect() # filter(df_orchestrator.load_status == 'pending').collect()
-
-print(games)
-
-for game in games: 
-    app_id = game['steam_id']
-    last_cursor = game['last_retrieved_cursor']
-
-    print(app_id)
-    print(last_cursor)
-
-
 # MARKDOWN ********************
 
 # # Ghetto Deluxe
@@ -424,9 +180,11 @@ import json
 import time
 import datetime
 import uuid
+import notebookutils
 
 from pyspark.sql import functions as f
-from pyspark.sql.window import Window
+from pyspark.sql.types import IntegerType
+from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
 
 # CELL ********************
 
@@ -438,6 +196,11 @@ NAMESPACE_ALTANWIR = uuid.UUID('f81d4fae-7dec-11d0-a765-00a0c91e6bf6')
 game_limit = 5
 cursor_limit = 3
 retry_limit = 3
+wait_config = {
+    "multiplier": 1
+    , "min": 2
+    , "max": 60
+}
 
 # MARKDOWN ********************
 
@@ -445,32 +208,26 @@ retry_limit = 3
 
 # CELL ********************
 
-# def requestSteamReviews(app_id, last_cursor, session_instance):
+# the retry_state parameter is an object of tenacity's RetryCallState class
+# it contains all the information about the current state of the retries, such as attempt number and wait time
+def log_retry_state(retry_state):
+    attempt = retry_state.attempt_number
+    wait_time = retry_state.next_action.sleep
+    print(f"Rate limit hit on attempt {attempt}/{retry_limit}. Waiting {wait_time:.2f} seconds before retrying...")
 
-#     base_url = f"https://store.steampowered.com/appreviews/{app_id}?json=1"
+# this is am empty class that simply defines the custom exception 'SteamRateLimit' by inheriting from the base 'Exception' class
+class SteamRateLimit(Exception):
+    pass
 
-#     params = {
-#         "filter": "recent",
-#         "num_per_page": 100,
-#         "cursor": {last_cursor}
-#     }
-
-#     print(f"START requestSteamReviews for appId {app_id}, cursor = {last_cursor}")
-
-#     response = session_instance.requests.get(base_url, params=params)
-
-#     if response.status_code == 200:
-#         time.sleep(1)
-#         print(f"END requestSteamReviews for appId {app_id}")
-
-#         return response
-#     else:
-#         response_message = f"Failed: {response.status_code} -- {response.text}"
-#         print(f"STOP requestSteamReviews: {response_message}")
-#         return response_message
-
-
-# CELL ********************
+# this wraps around requestSteamReviews and is only called if the exception is raised as a class called 'SteamRateLimit'
+# it will attempt to connect to steam following the random_exponential pattern, for a limited amount of times
+# right before it retries, it calls log_retry_state to print out some data for transparency
+@retry(
+        stop=stop_after_attempt(retry_limit)
+        , wait=wait_random_exponential(**wait_config)
+        , retry=retry_if_exception_type(SteamRateLimit)
+        , before_sleep=log_retry_state
+)
 
 def requestSteamReviews(app_id, last_cursor, session_instance):
 
@@ -486,7 +243,14 @@ def requestSteamReviews(app_id, last_cursor, session_instance):
 
     response = session_instance.get(base_url, params=params)
 
-    return response
+    # raises a custom exception SteamRateLimit which triggers @retry
+    if response.status_code == 429:
+        raise SteamRateLimit("Throttled by Steam")
+
+    # this does nothing if the response is between 200-299, otherwise it raises an exception
+    response.raise_for_status()
+
+    return response.json()
 
 
 # CELL ********************
@@ -522,38 +286,6 @@ def updateOrchestrator(app_id, load_type = None, load_status = None, last_execut
 
 # CELL ********************
 
-def insertControl(app_id, execution_type, execution_start_time):
-
-    execution_id_base = str(app_id) + str(execution_start_time)
-    execution_id = uuid.uuid5(NAMESPACE_ALTANWIR,execution_id_base)
-
-    path = f"Files/Steam/Reviews/{execution_type}/{app_id}/{execution_id}"
-
-    query = f"""
-            insert into control.loadcontrolreviews ( execution_id
-                , app_id
-                , execution_start_time
-                , execution_type
-                , execution_status
-                , output_path
-            )
-            values ( '{str(execution_id)}'
-                , {app_id}
-                , '{execution_start_time}'
-                , '{execution_type}'
-                , 'in-progress'
-                , '{path}'
-            )
-            """
-    
-    spark.sql(query)
-
-    print(f"Inserted execution {execution_id} into control.loadControlReviews for app_id = {app_id}, execution_type = {execution_type}")
-
-    return execution_id
-
-# CELL ********************
-
 def checkControl (app_id, execution_id = None):
 
     where_predicates = [
@@ -578,39 +310,14 @@ def checkControl (app_id, execution_id = None):
     print(f"Determined cursor for app_id = {app_id}: {cursor}")
     return cursor
 
-# CELL ********************
-
-def updateControl (app_id, execution_id, execution_duration = None, execution_status = None, retrieved_reviews = None, last_retrieved_timestamp = None, last_retrieved_cursor = None):
-
-    where_clause = f"app_id = {app_id} and execution_id = '{execution_id}'"
-
-    update_predicates = [
-            f"execution_duration = {execution_duration}" if execution_duration else '',
-            f"execution_status = '{execution_status}'" if execution_status else '',
-            f"retrieved_reviews = {retrieved_reviews}" if retrieved_reviews else '',
-            f"last_retrieved_timestamp = '{last_retrieved_timestamp}'" if last_retrieved_timestamp else '',
-            f"last_retrieved_cursor = '{last_retrieved_cursor}'" if last_retrieved_cursor else ''
-    ]
-    update_clause = ", ".join([pred for pred in update_predicates if pred])
-
-    query = f"""
-            update control.loadcontrolreviews
-            set {update_clause}
-            where {where_clause}
-            """
-
-    df_results = spark.sql(query)
-
-    results_row = df_results.first()
-    affected_rows = results_row['num_affected_rows']
-
-    print(f"Updated control.loadControlReviews for {where_clause}; {affected_rows} affected")    
-
 # MARKDOWN ********************
 
 # ## Main Loop
 
 # CELL ********************
+
+# Initialise run
+execution_type = 'initial'
 
 df_orchestrator = spark.read.format("delta").load(path_orchestrator) \
     .select("app_id") \
@@ -620,129 +327,123 @@ df_orchestrator = spark.read.format("delta").load(path_orchestrator) \
 games_row = df_orchestrator.collect()
 games_list = [row['app_id'] for row in games_row]
 
-print(games_list)
-
-# CELL ********************
-
-temp_reviews_list = []
-
-print(f"Processing up to {cursor_limit*100} reviews for the following games: {games_list}")
+print(f"Processing up to {cursor_limit*100} reviews for each of the following games: {games_list}")
 
 for game in games_list:
-
-    print(f"Start processing app_id: {game}...")
-
-    var_execution_type = 'initial'
-    var_execution_status = 'in-progress'
-    var_execution_start_time = datetime.datetime.now()
-    var_execution_id = str(insertControl(app_id=game, execution_type=var_execution_type, execution_start_time=var_execution_start_time))
-
-    updateOrchestrator(app_id=game, load_type=var_execution_type, load_status=var_execution_status, last_execution_id=var_execution_id, last_execution_time=var_execution_start_time)
-
-    var_last_cursor = checkControl(app_id=game)
-
-    var_execution_duration = 0
-    var_retrieved_reviews = 0
-    var_last_retrieved_timestamp = None
-
-    batch_retrieved_reviews = 0
-    batch_retrieved_timestamp = None
-    batch_retrieved_cursor = None
-
-    retry_attempt = 1
+    # Initialise loop and the audit dictionary
+    execution_start_time = datetime.datetime.now()
+    execution_id_base = str(game) + str(execution_start_time)
+    execution_id = uuid.uuid5(NAMESPACE_ALTANWIR,execution_id_base)
+    audit = {
+        "app_id": game
+        , "execution_id": str(execution_id)
+        , "execution_start_time": execution_start_time
+        , "execution_duration": 0
+        , "execution_type": execution_type
+        , "execution_status": 'in-progress'
+        , "load_status": 'in-progress'
+        , "retrieved_reviews": None
+        , "last_retrieved_timestamp": None
+        , "last_retrieved_cursor": None
+        , "output_path": None
+    }
+    reviews_list = []
     batch = 1
 
-    with requests.Session() as session:
-        print(f"Session opened for app_id {app_id}")
+    print(f"{execution_start_time}: Start processing app_id {game}. Assigned id {execution_id}.")
 
-        while (batch <= cursor_limit):
-            print(f"Start batch {batch} of {cursor_limit}...")
+    audit["last_retrieved_cursor"] = checkControl(app_id=game)
 
-            response = requestSteamReviews(app_id=game, last_cursor=var_last_cursor, session_instance=session)
+    try:
+        with requests.Session() as session:
+            print(f"Session opened for app_id {audit['app_id']}")
 
-            if response.status_code == 200:
-                time.sleep(1)
-                print(f"END requestSteamReviews for appId {app_id}, cursor {var_last_cursor}")
+            while (batch <= cursor_limit):
+                print(f"Start batch {batch} of {cursor_limit}...")
 
-                data = response.json()
+                data = requestSteamReviews(
+                        app_id=audit["app_id"]
+                        , last_cursor=audit["last_retrieved_cursor"]
+                        , session_instance=session
+                    )
+                print(f"END requestSteamReviews for appId {audit['app_id']}, cursor {audit['last_retrieved_cursor']}")
+
                 reviews = data.get("reviews", [])
+                audit["last_retrieved_cursor"] = data.get("cursor", [])
 
-                if not var_last_cursor or len(reviews) == 0:
-                    batch_execution_duration = datetime.datetime.now() - var_execution_start_time
-                    batch_execution_duration = batch_execution_duration.total_seconds()
-                    
-                    print(f"Reached end of reviews after {batch} batches for app_id {game}. load_type {var_execution_type} is now Complete.")
-                    updateOrchestrator(app_id=game, load_type=var_execution_type, load_status='completed', last_execution_id=var_execution_id)
-                    break                   
+                if not audit["last_retrieved_cursor"] or len(reviews) == 0:
+                    audit["load_status"] = "complete"
+                    print(f"Reached end of reviews after {batch} batches for app_id {audit['app_id']}. load_type {audit['execution_type']} is now Complete.")
+                    break    
 
-                batch_retrieved_timestamp = reviews[-1]["timestamp_created"]
-                batch_retrieved_cursor = data.get("cursor", [])
-                batch_retrieved_reviews = len(reviews)
-
-                batch_execution_duration = datetime.datetime.now() - var_execution_start_time
-                batch_execution_duration = batch_execution_duration.total_seconds()
-                
-                # todo: save reviews
-
-                updateControl(app_id=game, execution_id=var_execution_id,execution_duration=var_execution_duration,execution_status=var_execution_status,retrieved_reviews=batch_retrieved_reviews,last_retrieved_timestamp=batch_retrieved_timestamp,last_retrieved_cursor=batch_retrieved_cursor)
-
-                batch += 1
-                var_last_cursor = batch_retrieved_cursor
-
-                var_execution_duration += batch_execution_duration
-                var_retrieved_reviews += batch_retrieved_reviews
-                var_last_retrieved_timestamp = batch_retrieved_timestamp
-
-                temp_reviews_list.extend(reviews)
-
+                reviews_list.extend(reviews)
                 print(f"Processed batch {batch} of {cursor_limit}!")
 
-            elif response.status_code == 429:
-                if retry_attempt + 1 <= retry_limit:
+                batch += 1
+                time.sleep(1)
 
-                    retry_attempt += 1
-
-                    print(f"Received 429, waiting before retrying. Attempt number {retry_attempt}")
-
-                    time.sleep(60 * retry_attempt)
-
-                    continue
-
-                else:
-                    var_execution_status = f"Timed Out: {response.status_code}"
-                    batch_execution_duration = datetime.datetime.now() - var_execution_start_time
-                    batch_execution_duration = batch_execution_duration.total_seconds()
-                    
-                    print(f"Execution {var_execution_id}, batch {batch} out of {cursor_limit} for app_id {game} timed out after {retry_attempt} attempts: {var_execution_status}")
-                    
-                    break             
-                           
-            else:
-                batch_execution_duration = datetime.datetime.now() - var_execution_start_time
-                batch_execution_duration = batch_execution_duration.total_seconds()
-
-                var_execution_status = f"Failed: {response.status_code}"
-                print(f"Execution {var_execution_id}, batch {batch} of {cursor_limit} for app_id {game} encountered an error: {var_execution_status}")
+            audit["execution_status"] = "success"
+            print(f"Reached end of batches for app_id {audit['app_id']}")
                 
-                break
+    except Exception as e:
+        audit.update(
+            {"execution_status": f"Failed: {str(e)}"
+            , "load_status": "failed"}
+        )
+        print(f"Failed at app_id {audit['app_id']}, batch {batch}, execution {audit['execution_id']} with: {audit['execution_status']}")
+
+    finally:
+        if not reviews_list:
+            audit.update(
+                {"execution_status": "empty"
+                , "load_status": "empty"}
+            )    
+        else:
+            json_data = json.dumps(reviews_list, indent=4)
+            date_str = audit["execution_start_time"].strftime("%Y%m%d") # simple formatter to yyyymmdd
+            file_path = f"Files/Steam/Reviews/{audit['execution_type']}/{audit['app_id']}/{date_str}/{audit['execution_id']}.json"
+
+            audit.update(
+                {"retrieved_reviews": len(reviews_list)
+                , "last_retrieved_timestamp": reviews_list[-1]["timestamp_created"]
+                , "output_path": file_path}
+            )
+
+            # notebookutils to write the file to the Lakehouse
+            # .put creates the directories if they do not exist
+            # True will overwrite the file if it exists
+            notebookutils.fs.put(file_path, json_data, True)
+
+            print(f"Saved {len(reviews_list)} to {file_path}")
+
+        duration = datetime.datetime.now() - audit["execution_start_time"]
+        audit["execution_duration"] = duration.total_seconds()
             
-    var_execution_duration = datetime.datetime.now() - var_execution_start_time
-    var_execution_duration = var_execution_duration.total_seconds()
-    var_execution_status = 'success'
+        df_audit = spark.createDataFrame([audit])
+        df_audit = df_audit.drop("load_status") \
+            .withColumn("app_id", f.col("app_id").cast(IntegerType())) \
+            .withColumn("execution_duration", f.col("execution_duration").cast(IntegerType())) \
+            .withColumn("retrieved_reviews", f.col("retrieved_reviews").cast(IntegerType())) \
+            .withColumn("last_retrieved_timestamp", f.from_unixtime(f.col("last_retrieved_timestamp")).cast("timestamp"))
+        df_audit.write.format("delta").mode("append").save(path_control)
 
-    updateControl(app_id=game, execution_id=var_execution_id, execution_duration=var_execution_duration, execution_status=var_execution_status, retrieved_reviews=var_retrieved_reviews, last_retrieved_timestamp=var_last_retrieved_timestamp , last_retrieved_cursor=var_last_cursor)
+        updateOrchestrator(
+            app_id= audit["app_id"]
+            , load_type=audit["execution_type"]
+            , load_status=audit["load_status"]
+            , last_execution_id=audit["execution_id"]
+            , last_execution_time=audit["execution_start_time"]
+        )
+        print(f"Audit state saved. {audit}")
 
-    print(f"End processing app_id: {game}")
+    print(f"End processing execution {audit['execution_id']} for game {game}")
 
-print (len(temp_reviews_list))
+print(f"Processing complete for games {games_list}")
 
-# CELL ********************
 
-print(var_last_cursor)
+# MARKDOWN ********************
 
-# CELL ********************
-
-print(temp_reviews_list)
+# ## Debug
 
 # CELL ********************
 
@@ -752,7 +453,7 @@ print(temp_reviews_list)
 
 # update control.loadorchestratorreviews
 # set load_status = 'pending', last_execution_id = NULL, last_execution_time = NULL
-# where app_id in ( 184571, 39500 )
+# where app_id in ( 323190, 39500 )
 
 # CELL ********************
 
@@ -760,16 +461,8 @@ print(temp_reviews_list)
 # MAGIC 
 # MAGIC select * from control.loadorchestratorreviews;
 # MAGIC 
-# MAGIC select * from control.loadcontrolreviews order by execution_start_time desc
-
-# MARKDOWN ********************
-
-# ## Debug
+# MAGIC select * from control.loadcontrolreviews order by app_id, execution_start_time desc
 
 # CELL ********************
-
-# insertControl(39500, 'initial', '2026-03-23 13:23:34.931' )
-
-# updateControl(39500, '292b5ad1-024e-565f-9c88-449e51867499', last_retrieved_cursor = 'testest2')
 
 # checkControl(39500) #, '292b5ad1-024e-565f-9c88-449e51867499')

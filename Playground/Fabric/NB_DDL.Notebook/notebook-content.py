@@ -69,7 +69,7 @@
 # MAGIC     execution_type STRING,
 # MAGIC     execution_status STRING,
 # MAGIC     retrieved_reviews INT,
-# MAGIC     last_retrieved_timestamp BIGINT,
+# MAGIC     last_retrieved_timestamp TIMESTAMP,
 # MAGIC     last_retrieved_cursor STRING,
 # MAGIC     output_path STRING
 # MAGIC );

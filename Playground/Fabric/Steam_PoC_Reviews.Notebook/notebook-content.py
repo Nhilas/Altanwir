@@ -20,6 +20,38 @@
 # META   }
 # META }
 
+# CELL ********************
+
+import requests
+import json
+import time
+import datetime
+import uuid
+import notebookutils
+from notebookutils import mssparkutils
+import sys
+
+from pyspark.sql import functions as f
+from pyspark.sql import Row
+from pyspark.sql.types import IntegerType, StructType, StructField, StringType, LongType
+from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
+
+# CELL ********************
+
+path_orchestrator = 'abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/control/loadorchestratorreviews'
+path_control = 'abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.Lakehouse/Tables/control/loadcontrolreviews'
+
+NAMESPACE_ALTANWIR = uuid.UUID('f81d4fae-7dec-11d0-a765-00a0c91e6bf6')
+
+game_limit = 5
+cursor_limit = 10
+retry_limit = 3
+wait_config = {
+    "multiplier": 1
+    , "min": 2
+    , "max": 60
+}
+
 # MARKDOWN ********************
 
 # # Original Tracer Bullet Script
@@ -169,6 +201,191 @@ print(f"\nSuccess! We collected {len(my_tracer_reviews)} reviews for our tracer 
 
 # MARKDOWN ********************
 
+# ## Memory Trials
+
+# CELL ********************
+
+def memoryTrial():
+    # Get memory per executor
+    executor_mem = spark.conf.get("spark.executor.memory")
+
+    # Get number of executors
+    num_executors = int(spark.conf.get("spark.executor.instances"))
+
+    # Get memory for the driver
+    driver_mem = spark.conf.get("spark.driver.memory")
+
+    print(f"MEMORY TRIAL ========================== Driver Memory: {driver_mem} ========================== MEMORY TRIAL")
+    print(f"MEMORY TRIAL ========================== Executor Memory: {executor_mem} ========================== MEMORY TRIAL")
+    print(f"MEMORY TRIAL ========================== Number of Executors: {num_executors} ========================== MEMORY TRIAL")
+
+# Note: This doesn't tell you "free" memory, but it gives you the configured limits to work against.
+
+# CELL ********************
+
+# Initialise run
+execution_type = 'initial'
+
+df_orchestrator = spark.read.format("delta").load(path_orchestrator) \
+    .select("app_id") \
+    .limit(game_limit) \
+    .sort(f.asc("last_execution_time")) \
+    .filter(f.col("load_status").isin("pending", "in-progress"))
+games_row = df_orchestrator.collect()
+games_list = [row['app_id'] for row in games_row]
+
+schema = StructType([
+    StructField("app_id", LongType(), True)
+    , StructField("recommendationid", StringType(), True)
+    , StructField("review_json", StringType(), True)
+])
+
+data_list = []
+
+print(f"Processing up to {cursor_limit*100} reviews for each of the following games: {games_list}")
+
+for game in games_list:
+    # Initialise loop and the audit dictionary
+    execution_start_time = datetime.datetime.now()
+    execution_id_base = str(game) + str(execution_start_time)
+    execution_id = uuid.uuid5(NAMESPACE_ALTANWIR,execution_id_base)
+    audit = {
+        "app_id": game
+        , "execution_id": str(execution_id)
+        , "execution_start_time": execution_start_time
+        , "execution_duration": 0
+        , "execution_type": execution_type
+        , "execution_status": 'in-progress'
+        , "load_status": 'in-progress'
+        , "retrieved_reviews": None
+        , "last_retrieved_timestamp": None
+        , "last_retrieved_cursor": None
+        , "output_path": None
+    }
+
+    reviews_list = []
+
+    batch = 1
+
+    print(f"{execution_start_time}: Start processing app_id {game}. Assigned id {execution_id}.")
+
+    audit["last_retrieved_cursor"] = checkControl(app_id=game)
+
+    try:
+        with requests.Session() as session:
+            print(f"Session opened for app_id {audit['app_id']}")
+
+            while (batch <= cursor_limit):
+                print(f"Start batch {batch} of {cursor_limit}...")
+
+                data = requestSteamReviews(
+                        app_id=audit["app_id"]
+                        , last_cursor=audit["last_retrieved_cursor"]
+                        , session_instance=session
+                    )
+                print(f"END requestSteamReviews for appId {audit['app_id']}, cursor {audit['last_retrieved_cursor']}")
+
+                reviews = data.get("reviews", [])
+                audit["last_retrieved_cursor"] = data.get("cursor", [])
+
+                if not audit["last_retrieved_cursor"] or len(reviews) == 0:
+                    audit["load_status"] = "complete"
+                    print(f"Reached end of reviews after {batch} batches for app_id {audit['app_id']}. load_type {audit['execution_type']} is now Complete.")
+                    break    
+
+                reviews_list.extend(reviews)
+
+                size_in_bytes = sys.getsizeof(reviews_list)
+
+                print(f"MEMORY TRIAL ========================== Size in MB for {len(reviews_list)} reviews = {size_in_bytes/8} ========================== MEMORY TRIAL")
+                
+                print(f"Processed batch {batch} of {cursor_limit}!")
+
+                batch += 1
+                time.sleep(1)
+
+            audit["execution_status"] = "success"
+            print(f"Reached end of batches for app_id {audit['app_id']}")
+                
+    except Exception as e:
+        audit.update(
+            {"execution_status": f"Failed: {str(e)}"
+            , "load_status": "failed"}
+        )
+        print(f"Failed at app_id {audit['app_id']}, batch {batch}, execution {audit['execution_id']} with: {audit['execution_status']}")
+
+    finally:
+        if not reviews_list:
+            audit.update(
+                {"execution_status": "empty"
+                , "load_status": "empty"}
+            )    
+        else:
+            json_data = json.dumps(reviews_list, indent=4)
+            date_str = audit["execution_start_time"].strftime("%Y%m%d") # simple formatter to yyyymmdd
+            file_path = f"Files/Steam/Reviews/{audit['execution_type']}/{audit['app_id']}/{date_str}/{audit['execution_id']}.json"
+
+            audit.update(
+                {"retrieved_reviews": len(reviews_list)
+                , "last_retrieved_timestamp": reviews_list[-1]["timestamp_created"]
+                , "output_path": file_path}
+            )
+
+        duration = datetime.datetime.now() - audit["execution_start_time"]
+        audit["execution_duration"] = duration.total_seconds()
+            
+        print(f"Audit state saved. {audit}")
+
+    data_to_load = [(game, review['recommendationid'], json.dumps(review)) for review in reviews_list]
+    size_in_bytes_df_list = sys.getsizeof(data_to_load)
+
+    print(f"MEMORY TRIAL ========================== Size in MB for 'data_to_load' = {size_in_bytes_df_list/8} ========================== MEMORY TRIAL")
+
+    data_list.extend(data_to_load)
+
+    print(f"End processing execution {audit['execution_id']} for game {game}")
+
+print(f"Processing complete for games {games_list}")
+
+memoryTrial()
+
+df_reviews = spark.createDataFrame(data=data_list, schema=schema)
+# todo cache
+
+memoryTrial()
+
+
+# CELL ********************
+
+schema = StructType([
+    StructField("app_id", LongType(), True)
+    , StructField("recommendationid", StringType(), True)
+    , StructField("review_json", StringType(), True)
+])
+memoryTrial()
+
+df_reviews = spark.createDataFrame(data=data_list, schema=schema)
+
+df_reviews.show(n=5, truncate=False)
+
+memoryTrial()
+
+# CELL ********************
+
+memoryTrial()
+
+df_reviews.cache()
+
+memoryTrial()
+
+df_reviews.count()
+
+# CELL ********************
+
+df_reviews.unpersist()
+
+# MARKDOWN ********************
+
 # # Ghetto Deluxe
 # 
 # I'm actually trying here
@@ -194,7 +411,7 @@ path_control = 'abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAnalytics.
 NAMESPACE_ALTANWIR = uuid.UUID('f81d4fae-7dec-11d0-a765-00a0c91e6bf6')
 
 game_limit = 5
-cursor_limit = 3
+cursor_limit = 100
 retry_limit = 3
 wait_config = {
     "multiplier": 1

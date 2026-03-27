@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "pl_Steam_API"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "6cfbb3c6-82de-88e5-4599-9291f3f863bc"
+  }
+}

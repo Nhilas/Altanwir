@@ -1,0 +1,51 @@
+{
+  "properties": {
+    "activities": [
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "5bd391d2-c039-9f4a-47c3-4a561adc2b5e",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "run_id": {
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "load_type": {
+              "value": "initial",
+              "type": "string"
+            },
+            "max_threads": {
+              "value": "6",
+              "type": "int"
+            },
+            "game_limit": {
+              "value": "2",
+              "type": "int"
+            },
+            "batch_limit": {
+              "value": "20",
+              "type": "int"
+            },
+            "jitter": {
+              "value": "5",
+              "type": "int"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "NB_Steam_Reviews",
+        "dependsOn": []
+      }
+    ]
+  }
+}

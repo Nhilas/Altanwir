@@ -38,7 +38,7 @@
 # ## Expected Behaviour
 # - This process relies on IGDBAnalytics.steam.loadReviews, a view over an audit table (steam.loadControlReviews) and a manual table (steam.loadOrchestratorReviews)
 # - The manual table contains the games I wanted to extract reviews for. Fields of note include priority (highly rated games got the highest priority) and 'load_status'
-# - This script will extract the top {game_limit} highest priority games, sorted by the oldest extractions. It will then save batches of up to 100 games, for {batch_limit} batches, saving them in {path_root} and logging the cursor in the control table
+# - This script will extract the top {game_limit} highest priority games, sorted by the oldest extractions and prioritizing on-going loads. It will then save batches of up to 100 games, for {batch_limit} batches, saving them in {path_root} and logging the cursor in the control table
 # - There are up to {max_threads} extractions at the same time using concurrency
 # - This script is expected to run several times per hour
 # - A separate notebook runs every so often and ingests the raw .json files in bronze.steamReviews
@@ -78,11 +78,10 @@ NAMESPACE_ALTANWIR = uuid.UUID('f81d4fae-7dec-11d0-a765-00a0c91e6bf6')
 audit_server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
 audit_database = 'IGDBAudit'
 lakehouse_info = notebookutils.lakehouse.get("IGDBAnalytics")
-# path_root = 'Files/Steam/Reviews'                                             # works for local test runs
-abfs_root = f"{lakehouse_info['properties']['abfsPath']}"   # necessary for pipeline runs
+abfs_root = f"{lakehouse_info['properties']['abfsPath']}"   # necessary for pipeline runs, can be commented for dev runs
 
 # Run Configurations
-run_id = 'Dev2'
+run_id = 'Dev3'
 load_type = 'initial'
 max_threads = 6
 
@@ -98,27 +97,6 @@ wait_config = {
     "multiplier": 1     # the exponent
     , "max": 600        # max wait value
 }
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "jupyter_python"
-# META }
-
-# CELL ********************
-
-lakehouse_info = notebookutils.lakehouse.get("IGDBAnalytics")
-# path_root = 'Files/Steam/Reviews'                                             # works for local test runs
-abfs_root = f"{lakehouse_info['properties']['abfsPath']}"   # necessary for pipeline runs
-
-output_path = f"/Files/Steam/Reviews/'runId'/'executionId'"
-
-save_path = f"{abfs_root}{output_path}/batch_1.json"
-
-print(abfs_root)
-print(output_path)
-print(save_path)
 
 # METADATA ********************
 
@@ -295,14 +273,6 @@ def process_batch(app_id, load_type, high_water_mark, start_cursor):
             while batch <= batch_limit:
                 # 1. Fetch data
                 reviews, cursor = request_steam_reviews(app_id, cursor, session) 
-                
-                if batch == 1: 
-                    audit["first_retrieved_timestamp"] = reviews[0].get('timestamp_created')
-                    print(f"[{app_id}]\t\tBATCH: First timestamp saved: {audit['first_retrieved_timestamp']}")
-                else:
-                    wait = random.randint(1,jitter)
-                    print(f"[{app_id}]\t\tBATCH: Start batch {batch} of {batch_limit}.  Courtesy wait: {wait} seconds. Waiting...")
-                    time.sleep(wait) # Courtesy sleep
 
                 # 2. Stop condition: End of reviews
                 if not reviews or cursor is None:
@@ -311,6 +281,15 @@ def process_batch(app_id, load_type, high_water_mark, start_cursor):
                     audit["last_retrieved_cursor"] = "*"
                     print(f"[{app_id}]\t\tBATCH: Reached the end of reviews after {batch} batches")
                     break
+
+                # save the first timestamp only in the first batch
+                if batch == 1: 
+                    audit["first_retrieved_timestamp"] = reviews[0].get('timestamp_created')
+                    print(f"[{app_id}]\t\tBATCH: First timestamp saved: {audit['first_retrieved_timestamp']}")
+                else:
+                    wait = random.randint(1,jitter)
+                    print(f"[{app_id}]\t\tBATCH: Start batch {batch} of {batch_limit}.  Courtesy wait: {wait} seconds. Waiting...")
+                    time.sleep(wait) # Courtesy sleep                    
                 
                 # 3. Stop condition: Incremental Watermark reached
                 if load_type != 'initial' and high_water_mark:
@@ -351,7 +330,7 @@ def process_batch(app_id, load_type, high_water_mark, start_cursor):
         audit["execution_end_time"] = end_time
         audit["execution_duration"] = duration.total_seconds()
 
-    print(f"[{app_id}]\t\tGAME: Load type {load_type} processed a total of {audit['retrieved_reviews']} reviews.")
+    print(f"[{app_id}]\t\tGAME: Load type {load_type} ended with status {audit['execution_status']}, load status is {audit['load_status']}. Processed a total of {audit['retrieved_reviews']} reviews.")
                 
     return app_id, audit
 
@@ -399,10 +378,10 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
     future_to_game = {
         executor.submit(
             process_batch, 
-            game[0], 
+            game[0],        # app_id
             load_type, 
-            game[1], 
-            game[2]
+            game[1],        # high_water_mark
+            game[2]         # last_cursor
         ): game[0] 
         for game in games_list
     }
@@ -472,7 +451,6 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
             conn.commit()
             print(f"[{app_id}]\tMAIN: Game finished with execution status = '{audit_dict['execution_status']}', load status = '{audit_dict['load_status']}'")
         except Exception as exc:
-            # This catches catastrophic thread failures that your worker's Try/Except missed
             print(f"[{app_id}]\tMAIN: Thread generated an unhandled exception: {exc}")
         finally:
             if 'conn' in locals(): conn.close()            

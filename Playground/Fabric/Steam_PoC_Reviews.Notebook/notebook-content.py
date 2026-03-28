@@ -117,7 +117,7 @@ print(f"\nSuccess! We collected {len(my_tracer_reviews)} reviews for our tracer 
 
 # MARKDOWN ********************
 
-# ## Ghetto
+# # Ghetto
 # 
 # A dumpster of ideas, to be cleaned out later. The workspace / scratchpad
 
@@ -386,9 +386,55 @@ df_reviews.unpersist()
 
 # MARKDOWN ********************
 
+# ## Audit Warehouse Implementation
+
+# CELL ********************
+
+import pyodbc
+import struct
+import notebookutils
+
+server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
+database = 'IGDBAudit'
+
+token = notebookutils.credentials.getToken("pbi")
+token_bytes = token.encode("utf-16-le")
+token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
+
+# --- 3. Connection String ---
+conn_str = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={server};DATABASE={database};Encrypt=yes;TrustServerCertificate=no"
+
+print(token)
+print(token_bytes)
+print(token_struct)
+print(conn_str)
+
+try:
+    conn = pyodbc.connect(conn_str, attrs_before={1256: token_struct})
+    cursor = conn.cursor()
+    
+    print("Successfully connected to Warehouse!")
+    
+    # --- 5. Example Execution ---
+    # cursor.execute("UPDATE Orchestration SET load_status = 'in-progress' WHERE app_id = ?", (570,))
+    # conn.commit()
+    
+except Exception as e:
+    print(f"Connection failed: {e}")
+finally:
+    if 'conn' in locals():
+        conn.close()
+
+
+# MARKDOWN ********************
+
 # # Ghetto Deluxe
 # 
 # I'm actually trying here
+
+# MARKDOWN ********************
+
+# ## Attempt 2: Audit Dictionary
 
 # CELL ********************
 
@@ -402,6 +448,10 @@ import notebookutils
 from pyspark.sql import functions as f
 from pyspark.sql.types import IntegerType
 from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
+
+# MARKDOWN ********************
+
+# ### Parameters
 
 # CELL ********************
 
@@ -421,7 +471,7 @@ wait_config = {
 
 # MARKDOWN ********************
 
-# ## Functions
+# ### Functions
 
 # CELL ********************
 
@@ -529,7 +579,7 @@ def checkControl (app_id, execution_id = None):
 
 # MARKDOWN ********************
 
-# ## Main Loop
+# ### Main Loop
 
 # CELL ********************
 
@@ -660,7 +710,7 @@ print(f"Processing complete for games {games_list}")
 
 # MARKDOWN ********************
 
-# ## Debug
+# ### Debug
 
 # CELL ********************
 
@@ -683,3 +733,340 @@ print(f"Processing complete for games {games_list}")
 # CELL ********************
 
 # checkControl(39500) #, '292b5ad1-024e-565f-9c88-449e51867499')
+
+# MARKDOWN ********************
+
+# ## Attempt 3: Multi-thread and Audit Warehouse
+
+# CELL ********************
+
+import pyodbc
+import struct
+import notebookutils
+import requests
+import json
+import time
+import uuid
+import concurrent.futures
+from datetime import datetime
+
+from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
+
+# MARKDOWN ********************
+
+# ### Parameters
+
+# CELL ********************
+
+NAMESPACE_ALTANWIR = uuid.UUID('f81d4fae-7dec-11d0-a765-00a0c91e6bf6')
+audit_server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
+audit_database = 'IGDBAudit'
+
+path_root = 'Files/Steam/Reviews/'
+run_id = 'Dev1'
+load_type = 'initial'
+game_limit = 1
+batch_limit = 2
+retry_limit = 3
+wait_config = {
+    "multiplier": 1
+    , "min": 2
+    , "max": 60
+}
+
+# MARKDOWN ********************
+
+# ### Functions
+
+# MARKDOWN ********************
+
+# #### connect_audit_wh
+
+# CELL ********************
+
+def connect_audit_wh():
+
+    # token formation
+    token = notebookutils.credentials.getToken("pbi")
+    token_bytes = token.encode("utf-16-le")
+    token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
+
+    # connection string + connection
+    conn_str = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={audit_server};DATABASE={audit_database};Encrypt=yes;TrustServerCertificate=no"
+    conn = pyodbc.connect(conn_str, attrs_before={1256: token_struct})
+
+    return conn
+
+# MARKDOWN ********************
+
+# #### save_reviews
+
+# CELL ********************
+
+def save_reviews_to_path(path, batch, reviews):
+    json_data = json.dumps(reviews, indent=4)
+    save_path = f"{path}/batch_{batch}.json"
+
+    notebookutils.fs.put(save_path, json_data, True)
+
+    print(f"SAVED: {len(reviews)} reviews to {save_path}")
+
+# MARKDOWN ********************
+
+# #### request_steam_reviews
+
+# CELL ********************
+
+# the retry_state parameter is an object of tenacity's RetryCallState class
+# it contains all the information about the current state of the retries, such as attempt number and wait time
+def log_retry_state(retry_state):
+    attempt = retry_state.attempt_number
+    wait_time = retry_state.next_action.sleep
+    print(f"RETRY: Rate limit hit on attempt {attempt}/{retry_limit}. Waiting {wait_time:.2f} seconds before retrying...")
+
+# this is am empty class that simply defines the custom exception 'SteamRateLimit' by inheriting from the base 'Exception' class
+class SteamRateLimit(Exception):
+    pass
+
+# this wraps around requestSteamReviews and is only called if the exception is raised as a class called 'SteamRateLimit'
+# it will attempt to connect to steam following the random_exponential pattern, for a limited amount of times
+# right before it retries, it calls log_retry_state to print out some data for transparency
+@retry(
+        stop=stop_after_attempt(retry_limit)
+        , wait=wait_random_exponential(**wait_config)
+        , retry=retry_if_exception_type(SteamRateLimit)
+        , before_sleep=log_retry_state
+)
+
+def request_steam_reviews(app_id, last_cursor, session_instance):
+
+    base_url = f"https://store.steampowered.com/appreviews/{app_id}?json=1"
+
+    params = {
+        "filter": "recent",
+        "num_per_page": 100,
+        "cursor": last_cursor
+    }
+
+    print(f"GET: reviews for appId {app_id}, cursor = {last_cursor}")
+
+    response = session_instance.get(base_url, params=params)
+
+    # raises a custom exception SteamRateLimit which triggers @retry
+    if response.status_code == 429:
+        raise SteamRateLimit("Throttled by Steam")
+
+    # this does nothing if the response is between 200-299, otherwise it raises an exception
+    response.raise_for_status()
+
+    reviews = response.json().get("reviews", [])
+    cursor = response.json().get("cursor", [])
+
+    return reviews, cursor
+
+
+# MARKDOWN ********************
+
+# #### process_batch
+
+# CELL ********************
+
+def process_batch(app_id, load_type, high_water_mark, start_cursor):
+    print(f"[{app_id}] Thread started.")
+    
+    # Initialize audit dictionary
+    start_time = datetime.now()
+    id_base = str(app_id) + str(start_time)
+    execution_id = uuid.uuid5(NAMESPACE_ALTANWIR,id_base)    
+    audit = {
+        "app_id": app_id,
+        "run_id": run_id,
+        "execution_id": execution_id,
+        "execution_type": load_type,
+        "execution_start_time": start_time,
+        "execution_end_time": None,
+        "execution_duration": 0,
+        "execution_status": "in-progress",
+        "load_status": "in-progress",
+        "retrieved_reviews": 0,
+        "first_retrieved_timestamp": None,
+        "last_retrieved_timestamp": None,
+        "last_retrieved_cursor": start_cursor,
+        "output_path": f"{path_root}/{load_type}/{run_id}/{execution_id}"
+    }
+    
+    batch = 1
+    cursor = start_cursor
+
+    print(f"GAME: Start processing load {load_type} for game {app_id}, using cursor = {cursor} and watermark {high_water_mark}")
+    
+    try:
+        with requests.Session() as session:
+            while batch <= batch_limit:
+                print(f"BATCH: Start batch {batch} of {batch_limit} for game {app_id}...")
+                
+                # 1. Fetch data
+                reviews, cursor = request_steam_reviews(app_id, cursor, session) 
+                
+                if batch == 1: 
+                    audit["first_retrieved_timestamp"] = reviews[0].get('timestamp_created')
+                    print(f"BATCH: First timestamp saved: {audit['first_retrieved_timestamp']}")
+
+                # 2. Stop condition: End of reviews
+                if not reviews or cursor is None:
+                    audit["load_status"] = "completed"
+                    audit["execution_status"] = "success"
+                    print(f"BATCH: Reached the end of reviews after {batch} batches for game {app_id}")
+                    break
+                
+                # 3. Stop condition: Incremental Watermark reached
+                if load_type != 'initial' and high_water_mark:
+                    first_in_batch = reviews[0].get('timestamp_created')
+                    if first_in_batch <= high_water_mark:
+                        audit["load_status"] = "completed"
+                        audit["execution_status"] = "success"
+                        print(f"BATCH: Reached the start of last load after {batch} batches for game {app_id}")
+                        break
+                
+                # 4. Save to Lakehouse path
+                save_reviews_to_path(audit["output_path"], batch, reviews)
+                
+                # 5. Update audit state
+                audit["retrieved_reviews"] += len(reviews)
+                audit["last_retrieved_timestamp"] = reviews[-1].get('timestamp_created')
+                audit["last_retrieved_cursor"] = cursor
+                
+                print(f"BATCH: Processed batch {batch} for game {app_id}")
+
+                batch += 1
+                time.sleep(1.5) # Courtesy sleep
+                
+    except Exception as e:
+        audit["execution_status"] = f"failed: {str(e)}"
+        audit["load_status"] = "failed"
+        print(f"BATCH: Error {app_id} failed with {e}")
+        
+    finally:
+        # 6. Database Check-in (Thread-safe because it's local to this function)
+        if audit["retrieved_reviews"] == 0:
+            audit["execution_status"] = "empty"
+            audit["load_status"] = "empty"
+            print(f"GAME: No reviews found for game {app_id}")
+        else:
+            end_time = datetime.now()
+            duration = end_time - audit["execution_start_time"]
+            audit["execution_status"] = 'success'
+            audit["execution_end_time"] = end_time
+            audit["execution_duration"] = duration.total_seconds()
+
+    print(f"GAME: Load type {load_type} processed a total of {audit['retrieved_reviews']} reviews for game {app_id}")
+                
+    return app_id, audit
+
+# MARKDOWN ********************
+
+# ## Main
+
+# CELL ********************
+
+# 1. Form the list of games to load
+conn = connect_audit_wh()
+db_cursor = conn.cursor()
+queryGames = f"""
+    select top {game_limit}
+        app_id
+        , high_water_mark
+        , isnull(last_retrieved_cursor, '*')
+    from steam.loadReviews
+    where load_status in ('pending', 'in-progress')
+        and load_type = ?
+    order by execution_start_time asc
+"""
+
+db_cursor.execute(queryGames, load_type)
+games_list = db_cursor.fetchall()
+
+conn.close()
+
+print(games_list)
+print(f"Starting orchestration for {len(games_list)} games...")
+
+# 2. Spin up the Thread Pool
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    
+    # Dictionary comprehension to map the Future object back to the app_id
+    # This immediately submits all jobs to the pool.
+    future_to_game = {
+        executor.submit(
+            process_batch, 
+            game[0], 
+            load_type, 
+            game[1], 
+            game[2]
+        ): game[0] 
+        for game in games_list
+    }
+
+    # 3. Process results as they finish
+    # as_completed() yields the futures as soon as they are done, regardless of start order.
+    for future in concurrent.futures.as_completed(future_to_game):
+        app_id = future_to_game[future]
+        try:
+            returned_app_id, audit_dict = future.result()
+
+            print(f"BATCH: Logging audit for game {app_id}: {audit}")
+
+            conn = connect_audit_wh()
+            db_cursor = conn.cursor()
+            
+            queryControl = """
+                insert into steam.loadControlReviews (
+                    app_id
+                    , run_id
+                    , execution_id
+                    , execution_type
+                    , execution_start_time
+                    , execution_end_time
+                    , execution_duration
+                    , execution_status
+                    , retrieved_reviews
+                    , first_retrieved_timestamp
+                    , last_retrieved_timestamp
+                    , last_retrieved_cursor
+                    , output_path
+                )
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            control_audit = dict(audit_dict)
+            del control_audit["load_status"]
+            argsControl = list(control_audit.values())
+
+            queryOrchestrator = """
+                update steam.loadOrchestratorReviews
+                set load_status = ?
+                where app_id = ?
+                    and load_type = ?
+            """
+            argsOrhcestrator = [
+                audit["load_status"]
+                , audit["app_id"]
+                , audit["execution_type"]
+            ]
+
+            # update the audit tables
+            db_cursor.execute(queryControl,argsControl)
+            db_cursor.execute(queryOrchestrator,argsOrhcestrator)
+            
+            conn.commit()
+            print(f"MAIN: Game {returned_app_id} finished with execution status = {audit["execution_status"]}, load status = {audit["load_status"]}")
+        except Exception as exc:
+            # This catches catastrophic thread failures that your worker's Try/Except missed
+            print(f"MAIN: Thread for Game {app_id} generated an unhandled exception: {exc}")
+        finally:
+            if 'conn' in locals(): conn.close()            
+
+print("All threads completed. Orchestrator shutdown.")
+
+# MARKDOWN ********************
+
+# ## Debug

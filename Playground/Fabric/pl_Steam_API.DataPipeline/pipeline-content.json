@@ -23,11 +23,11 @@
               "type": "int"
             },
             "game_limit": {
-              "value": "2",
+              "value": "30",
               "type": "int"
             },
             "batch_limit": {
-              "value": "20",
+              "value": "100",
               "type": "int"
             },
             "jitter": {
@@ -46,6 +46,7 @@
         "name": "NB_Steam_Reviews",
         "dependsOn": []
       }
-    ]
+    ],
+    "concurrency": 1
   }
 }

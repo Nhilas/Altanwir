@@ -1,0 +1,26 @@
+[
+  {
+    "name": "games",
+    "path": "/Tables/dbo",
+    "target": {
+      "type": "OneLake",
+      "oneLake": {
+        "path": "Tables/dbo/games",
+        "itemId": "5ac3553c-93af-4dc2-ad0a-b6e4a7179e6b",
+        "workspaceId": "97d93f5a-488d-4249-9390-2e6dbc9cf1dd"
+      }
+    }
+  },
+  {
+    "name": "games",
+    "path": "/Files",
+    "target": {
+      "type": "OneLake",
+      "oneLake": {
+        "path": "Tables/dbo/games",
+        "itemId": "5ac3553c-93af-4dc2-ad0a-b6e4a7179e6b",
+        "workspaceId": "97d93f5a-488d-4249-9390-2e6dbc9cf1dd"
+      }
+    }
+  }
+]

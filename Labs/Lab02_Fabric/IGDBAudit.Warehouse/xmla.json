@@ -1,0 +1,599 @@
+{
+  "name": "{{Dataset_Name}}",
+  "compatibilityLevel": 1604,
+  "model": {
+    "name": "{{Dataset_Name}}",
+    "culture": "en-US",
+    "collation": "Latin1_General_100_BIN2_UTF8",
+    "dataAccessOptions": {
+      "legacyRedirects": true,
+      "returnErrorValuesAsNull": true
+    },
+    "defaultPowerBIDataSourceVersion": "powerBI_V3",
+    "sourceQueryCulture": "en-US",
+    "tables": [
+      {
+        "name": "loadControlReviews(1)",
+        "sourceLineageTag": "[steam].[loadControlReviews]",
+        "columns": [
+          {
+            "name": "app_id",
+            "dataType": "int64",
+            "sourceColumn": "app_id",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "app_id",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "run_id",
+            "dataType": "string",
+            "sourceColumn": "run_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "run_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_id",
+            "dataType": "string",
+            "sourceColumn": "execution_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "execution_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_type",
+            "dataType": "string",
+            "sourceColumn": "execution_type",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "execution_type",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_start_time",
+            "dataType": "dateTime",
+            "sourceColumn": "execution_start_time",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "execution_start_time",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_end_time",
+            "dataType": "dateTime",
+            "sourceColumn": "execution_end_time",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "execution_end_time",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_duration",
+            "dataType": "int64",
+            "sourceColumn": "execution_duration",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "execution_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_status",
+            "dataType": "string",
+            "sourceColumn": "execution_status",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "execution_status",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "retrieved_reviews",
+            "dataType": "int64",
+            "sourceColumn": "retrieved_reviews",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "retrieved_reviews",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "last_retrieved_cursor",
+            "dataType": "string",
+            "sourceColumn": "last_retrieved_cursor",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "last_retrieved_cursor",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "output_path",
+            "dataType": "string",
+            "sourceColumn": "output_path",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "output_path",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "first_retrieved_timestamp",
+            "dataType": "int64",
+            "sourceColumn": "first_retrieved_timestamp",
+            "formatString": "0",
+            "sourceProviderType": "bigint",
+            "sourceLineageTag": "first_retrieved_timestamp",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "last_retrieved_timestamp",
+            "dataType": "int64",
+            "sourceColumn": "last_retrieved_timestamp",
+            "formatString": "0",
+            "sourceProviderType": "bigint",
+            "sourceLineageTag": "last_retrieved_timestamp",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "loadControlReviews",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "steam"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "loadOrchestratorReviews(1)",
+        "sourceLineageTag": "[steam].[loadOrchestratorReviews]",
+        "columns": [
+          {
+            "name": "app_id",
+            "dataType": "int64",
+            "sourceColumn": "app_id",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "app_id",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "load_type",
+            "dataType": "string",
+            "sourceColumn": "load_type",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "load_type",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "priority",
+            "dataType": "string",
+            "sourceColumn": "priority",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "priority",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "load_status",
+            "dataType": "string",
+            "sourceColumn": "load_status",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "load_status",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "loadOrchestratorReviews",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "steam"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "loadReviews",
+        "sourceLineageTag": "[steam].[loadReviews]",
+        "columns": [
+          {
+            "name": "app_id",
+            "dataType": "int64",
+            "sourceColumn": "app_id",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "app_id",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "load_type",
+            "dataType": "string",
+            "sourceColumn": "load_type",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "load_type",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "priority",
+            "dataType": "string",
+            "sourceColumn": "priority",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "priority",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "load_status",
+            "dataType": "string",
+            "sourceColumn": "load_status",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "load_status",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "run_id",
+            "dataType": "string",
+            "sourceColumn": "run_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "run_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_id",
+            "dataType": "string",
+            "sourceColumn": "execution_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "execution_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_start_time",
+            "dataType": "dateTime",
+            "sourceColumn": "execution_start_time",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "execution_start_time",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_end_time",
+            "dataType": "dateTime",
+            "sourceColumn": "execution_end_time",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "execution_end_time",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_duration",
+            "dataType": "int64",
+            "sourceColumn": "execution_duration",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "execution_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "execution_status",
+            "dataType": "string",
+            "sourceColumn": "execution_status",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "execution_status",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "retrieved_reviews",
+            "dataType": "int64",
+            "sourceColumn": "retrieved_reviews",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "retrieved_reviews",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "first_review_on",
+            "dataType": "dateTime",
+            "sourceColumn": "first_review_on",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "first_review_on",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "last_review_on",
+            "dataType": "dateTime",
+            "sourceColumn": "last_review_on",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "last_review_on",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "output_path",
+            "dataType": "string",
+            "sourceColumn": "output_path",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "output_path",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "high_water_mark",
+            "dataType": "int64",
+            "sourceColumn": "high_water_mark",
+            "formatString": "0",
+            "sourceProviderType": "bigint",
+            "sourceLineageTag": "high_water_mark",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "last_retrieved_cursor",
+            "dataType": "string",
+            "sourceColumn": "last_retrieved_cursor",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "last_retrieved_cursor",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "priority_order",
+            "dataType": "int64",
+            "sourceColumn": "priority_order",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "priority_order",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "loadReviews",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "steam"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      }
+    ],
+    "expressions": [
+      {
+        "name": "DatabaseQuery",
+        "kind": "m",
+        "expression": "let\n    database = {{TDS_Endpoint}}\nin\n    database\n"
+      }
+    ],
+    "annotations": [
+      {
+        "name": "__PBI_TimeIntelligenceEnabled",
+        "value": "0"
+      },
+      {
+        "name": "SourceLineageTagType",
+        "value": "DatabaseFullyQualifiedName"
+      }
+    ]
+  }
+}

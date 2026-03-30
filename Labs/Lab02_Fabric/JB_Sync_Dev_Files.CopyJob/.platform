@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "CopyJob",
+    "displayName": "JB_Sync_Dev_Files"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "f5892296-fd34-8f67-424d-63fd411d9d7e"
+  }
+}

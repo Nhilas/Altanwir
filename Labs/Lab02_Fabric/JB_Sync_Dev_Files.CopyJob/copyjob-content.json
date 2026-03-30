@@ -1,0 +1,60 @@
+{
+  "properties": {
+    "jobMode": "Batch",
+    "source": {
+      "type": "Binary",
+      "connectionSettings": {
+        "type": "Lakehouse",
+        "typeProperties": {
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "artifactId": "00d8b9cc-e9cf-a144-4dac-3b8b21686009",
+          "rootFolder": "Files"
+        }
+      }
+    },
+    "destination": {
+      "type": "Binary",
+      "connectionSettings": {
+        "type": "Lakehouse",
+        "typeProperties": {
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "artifactId": "1c23a31e-da99-8cb3-458d-3109c683a58d",
+          "rootFolder": "Files"
+        }
+      }
+    },
+    "policy": {
+      "timeout": "0.12:00:00",
+      "retry": 0
+    }
+  },
+  "activities": [
+    {
+      "id": "8d303414-366a-4edc-8ecc-91b5de54152f",
+      "properties": {
+        "source": {
+          "datasetSettings": {
+            "location": {
+              "type": "LakehouseLocation",
+              "folderPath": "Steam"
+            }
+          },
+          "storeSettings": {
+            "recursive": true
+          }
+        },
+        "destination": {
+          "datasetSettings": {
+            "location": {
+              "type": "LakehouseLocation"
+            }
+          },
+          "storeSettings": {
+            "copyBehavior": "PreserveHierarchy"
+          }
+        },
+        "enableStaging": false
+      }
+    }
+  ]
+}

@@ -151,7 +151,7 @@ def save_reviews_to_path(app_id, path, batch, reviews):
     json_data = json.dumps(reviews, indent=4)
     save_path = f"{abfs_root}{path}/batch_{batch}.json"
 
-    notebookutils.fs.put(save_path, json_data, True)
+    notebookutils.fs.put(save_path, json_data, False)
 
     print(f"[{app_id}]\t\tSAVED: {len(reviews)} reviews to {path}")
 

@@ -26,6 +26,7 @@ select
     , o.load_type
     , o.priority
     , case 
+        when o.load_status = 'retry' then -1 -- always prioritize reruns
         when coalesce(e.execution_id, s.execution_id) is not null and o.load_status <> 'completed' then 0   -- prioritize ongoing runs
         when o.load_status = 'completed' then 99
         when o.priority = 'High' then 1

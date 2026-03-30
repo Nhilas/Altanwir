@@ -15,24 +15,46 @@
               "type": "string"
             },
             "load_type": {
-              "value": "initial",
+              "value": {
+                "value": "@pipeline().parameters.load_type",
+                "type": "Expression"
+              },
               "type": "string"
             },
             "max_threads": {
-              "value": "6",
+              "value": {
+                "value": "@pipeline().parameters.max_threads",
+                "type": "Expression"
+              },
               "type": "int"
             },
             "game_limit": {
-              "value": "30",
+              "value": {
+                "value": "@pipeline().parameters.game_limit",
+                "type": "Expression"
+              },
               "type": "int"
             },
             "batch_limit": {
-              "value": "100",
+              "value": {
+                "value": "@pipeline().parameters.batch_limit",
+                "type": "Expression"
+              },
               "type": "int"
             },
             "jitter": {
-              "value": "5",
+              "value": {
+                "value": "@pipeline().parameters.jitter",
+                "type": "Expression"
+              },
               "type": "int"
+            },
+            "targeted_reload": {
+              "value": {
+                "value": "@pipeline().parameters.targeted_reload",
+                "type": "Expression"
+              },
+              "type": "string"
             }
           }
         },
@@ -47,6 +69,32 @@
         "dependsOn": []
       }
     ],
+    "parameters": {
+      "load_type": {
+        "type": "string",
+        "defaultValue": "initial"
+      },
+      "max_threads": {
+        "type": "int",
+        "defaultValue": 6
+      },
+      "game_limit": {
+        "type": "int",
+        "defaultValue": 30
+      },
+      "batch_limit": {
+        "type": "int",
+        "defaultValue": 100
+      },
+      "jitter": {
+        "type": "int",
+        "defaultValue": 5
+      },
+      "targeted_reload": {
+        "type": "string",
+        "defaultValue": "\"\""
+      }
+    },
     "concurrency": 1
   }
 }

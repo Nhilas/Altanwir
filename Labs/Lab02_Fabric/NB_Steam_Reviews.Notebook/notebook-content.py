@@ -81,15 +81,18 @@ lakehouse_info = notebookutils.lakehouse.get("IGDBAnalytics")
 abfs_root = f"{lakehouse_info['properties']['abfsPath']}"   # necessary for pipeline runs, can be commented for dev runs
 
 # Run Configurations
-run_id = 'Dev3'
+run_id = 'RetryEmptyLoadsBug1'
 load_type = 'initial'
 max_threads = 6
 
 # Limits
-game_limit = 40         # games per run
+game_limit = 5         # games per run
 batch_limit = 60       # batch per game. each batch is 100 reviews
 retry_limit = 5         # how many retries in case of a 429 code from steam
 jitter = 5              # maximum amount of seconds waiting between each batch
+
+# Debug
+targeted_reload = "(241540)"        # format this as a sql in clause. keep it as an empty string or comment otherwise
 
 # Retry Configurations
 wait_fixed = 10         # minimum retry wait of 10 seconds
@@ -172,10 +175,14 @@ def log_retry_state(retry_state):
     wait_time = retry_state.next_action.sleep
     # Get app_id from the arguments passed to the function being retried",
     app_id = retry_state.args[0] if retry_state.args else "UNKNOWN_APP_ID"
-    print(f"[{app_id}]\t\t\tRETRY: Rate limit hit on attempt {attempt}/{retry_limit}. Waiting {wait_time:.2f} seconds before retrying...")
+    exc = retry_state.outcome.exception()
+    print(f"[{app_id}]\t\t\tRETRY: {type(exc).__name__} hit on attempt {attempt}/{retry_limit}. Waiting {wait_time:.2f} seconds before retrying...")
 
 # this is am empty class that simply defines the custom exception 'SteamRateLimit' by inheriting from the base 'Exception' class
 class SteamRateLimit(Exception):
+    pass
+
+class SteamServerError(Exception):
     pass
 
 class SteamError(Exception):
@@ -187,7 +194,7 @@ class SteamError(Exception):
 @retry(
         stop=stop_after_attempt(retry_limit)
         , wait=wait_fixed + wait_random_exponential(**wait_config)
-        , retry=retry_if_exception_type(SteamRateLimit)
+        , retry=retry_if_exception_type((SteamRateLimit, SteamServerError))
         , before_sleep=log_retry_state
 )
 
@@ -208,9 +215,11 @@ def request_steam_reviews(app_id, last_cursor, session_instance):
 
     response = session_instance.get(base_url, params=params)
 
-    # raises a custom exception SteamRateLimit which triggers @retry
+    # raises a custom exception for rate limiting or server backend error which triggers @retry
     if response.status_code == 429:
         raise SteamRateLimit("Throttled by Steam")
+    elif response.status_code >= 500:
+        raise SteamServerError(f"Steam Server Error: {response.status_code}")
 
     # this does nothing if the response is between 200-299, otherwise it raises an exception
     response.raise_for_status()
@@ -271,44 +280,52 @@ def process_batch(app_id, load_type, high_water_mark, start_cursor):
     try:
         with requests.Session() as session:
             while batch <= batch_limit:
-                # 1. Fetch data
-                reviews, cursor = request_steam_reviews(app_id, cursor, session) 
+                reviews, new_cursor = request_steam_reviews(app_id, cursor, session) 
 
-                # 2. Stop condition: End of reviews
-                if not reviews or cursor is None:
+                # happy path: save the reviews of this batch
+                if reviews:
+                    # save the first timestamp only in the first batch
+                    if batch == 1: 
+                        audit["first_retrieved_timestamp"] = reviews[0].get('timestamp_created')
+                        print(f"[{app_id}]\t\tBATCH: First timestamp saved: {audit['first_retrieved_timestamp']}")                
+                    
+                    save_reviews_to_path(app_id, audit["output_path"], batch, reviews)
+                    
+                    audit["retrieved_reviews"] += len(reviews)
+                    audit["last_retrieved_timestamp"] = reviews[-1].get('timestamp_created')
+                    
+                    print(f"[{app_id}]\t\tBATCH: Processed batch {batch}")
+
+                # edge path: if there are no reviews on this page, but we have a valid cursor, we continue
+                elif new_cursor is not None and new_cursor != cursor:
+                    print(f"[{app_id}]\t\tBATCH: Batch {batch} was empty, but a next cursor exists. Continuing...")
+
+                # end path: we saved some reviews and the cursor is null or equal to the previous cursor. this means we can stop looping as we reached the end of the reviews
+                if new_cursor is None or new_cursor == cursor:
                     audit["load_status"] = "completed"
                     audit["execution_status"] = "success"
                     audit["last_retrieved_cursor"] = "*"
                     print(f"[{app_id}]\t\tBATCH: Reached the end of reviews after {batch} batches")
-                    break
+                    break   
 
-                # save the first timestamp only in the first batch
-                if batch == 1: 
-                    audit["first_retrieved_timestamp"] = reviews[0].get('timestamp_created')
-                    print(f"[{app_id}]\t\tBATCH: First timestamp saved: {audit['first_retrieved_timestamp']}")
-                else:
-                    wait = random.randint(1,jitter)
-                    print(f"[{app_id}]\t\tBATCH: Start batch {batch} of {batch_limit}.  Courtesy wait: {wait} seconds. Waiting...")
-                    time.sleep(wait) # Courtesy sleep                    
-                
-                # 3. Stop condition: Incremental Watermark reached
-                if load_type != 'initial' and high_water_mark:
+                # end path: we saved some reviews and we found the high watermark. this means we can stop looping as we reached the start of the previous run
+                if reviews and load_type != 'initial' and high_water_mark:
                     first_in_batch = reviews[0].get('timestamp_created')
                     if first_in_batch <= high_water_mark:
                         audit["load_status"] = "completed"
                         audit["execution_status"] = "success"
                         print(f"[{app_id}]\t\tBATCH: Reached the start of last load after {batch} batches")
-                        break
-                
-                # 4. Save to Lakehouse path
-                save_reviews_to_path(app_id, audit["output_path"], batch, reviews)
-                
-                # 5. Update audit state
-                audit["retrieved_reviews"] += len(reviews)
-                audit["last_retrieved_timestamp"] = reviews[-1].get('timestamp_created')
-                audit["last_retrieved_cursor"] = cursor
-                
-                print(f"[{app_id}]\t\tBATCH: Processed batch {batch}")
+                        break 
+
+                # save cursor for the next batch
+                cursor = new_cursor
+                audit["last_retrieved_cursor"] = cursor  
+
+                # Courtesy sleep
+                if batch > 1:
+                    wait = random.randint(1,jitter)
+                    print(f"[{app_id}]\t\tBATCH: Start batch {batch} of {batch_limit}.  Courtesy wait: {wait} seconds. Waiting...")
+                    time.sleep(wait)                            
 
                 batch += 1
 
@@ -354,14 +371,15 @@ queryGames = f"""
     select top {game_limit}
         app_id
         , high_water_mark
-        , isnull(last_retrieved_cursor, '*')
+        , last_retrieved_cursor
     from steam.loadReviews
-    where load_status in ('pending', 'in-progress')
-        and load_type = ?
+    where load_status in ('pending', 'in-progress', 'retry')
+        and load_type = '{load_type}'
+        {(f'and app_id in {targeted_reload}') if targeted_reload else ''}
     order by priority_order asc, execution_start_time asc
 """
 
-db_cursor.execute(queryGames, load_type)
+db_cursor.execute(queryGames)
 games_list = db_cursor.fetchall()
 
 conn.close()
@@ -369,6 +387,7 @@ conn.close()
 print(f"MAIN: Starting orchestration for {len(games_list)} games, load_type = '{load_type}'")
 print(f"MAIN: Game list is: {games_list}")
 print(f"MAIN: Setup is: \n\tmax threads = {max_threads} \n\tgame_limit = {game_limit} \n\tbatch_limit = {batch_limit}x100 reviews \n\tjitter between 1 and {jitter} seconds")
+if targeted_reload: print(f"MAIN:\tTargeted reload is enabled")
 
 # 2. Spin up the Thread Pool
 with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:

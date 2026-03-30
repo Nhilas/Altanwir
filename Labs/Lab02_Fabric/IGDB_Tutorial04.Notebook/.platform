@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "IGDB_Tutorial04"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "d747e0a2-2c29-95de-416b-865669a58b6d"
+  }
+}

@@ -1,7 +1,7 @@
 -- Auto Generated (Do not modify) 48423D9ABB762ED62DAF509BE5D7EDB0F04FA3FBE4EF4A1D3C1B012A2C78FA05
 
 
-create view steam.loadReviews as 
+create view steam.loadReviews as
 with ordered_executions as (
         select
             *
@@ -27,6 +27,7 @@ select
     , o.priority
     , case 
         when coalesce(e.execution_id, s.execution_id) is not null and o.load_status <> 'completed' then 0   -- prioritize ongoing runs
+        when o.load_status = 'completed' then 99
         when o.priority = 'High' then 1
         when o.priority = 'Medium' then 2
         when o.priority = 'Low' then 3
@@ -43,7 +44,13 @@ select
     , cast(dateadd(second, e.last_retrieved_timestamp, '1970-01-01') as datetime2) as last_review_on
     , e.output_path
     , s.first_retrieved_timestamp as high_water_mark
-    , coalesce(e.last_retrieved_cursor, s.last_retrieved_cursor) as last_retrieved_cursor    -- if there is no cursor in the last run, see if the last successful run has one
+    , case                                              -- expected behaviour: use the cursor from the last successful execution if the load is marked as failed or empty
+        when o.load_status in ('empty', 'failed', 'retry') and (e.last_retrieved_cursor is null or e.last_retrieved_cursor = '*' )
+            then s.last_retrieved_cursor
+        when o.load_status in ('completed', 'pending')  -- expected behaviour: if the load is completed or it hasn't started yet, make sure the cursor used will be '*'
+            then '*'
+        else coalesce(e.last_retrieved_cursor, '*')     -- if there is no valid cursor from either the last run, or the last succssful run, use '*'
+    end as last_retrieved_cursor
 from steam.loadOrchestratorReviews as o
 left join ordered_executions as e
     on o.app_id = e.app_id

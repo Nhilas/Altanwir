@@ -8,12 +8,15 @@
 # META   },
 # META   "dependencies": {
 # META     "lakehouse": {
-# META       "default_lakehouse": "21686009-3b8b-4dac-a144-e9cf00d8b9cc",
-# META       "default_lakehouse_name": "IGDBAnalytics",
+# META       "default_lakehouse": "c683a58d-3109-458d-8cb3-da991c23a31e",
+# META       "default_lakehouse_name": "IGDBAnalytics_Dev",
 # META       "default_lakehouse_workspace_id": "d1206eb3-2259-44b8-844a-409f1a63f284",
 # META       "known_lakehouses": [
 # META         {
 # META           "id": "21686009-3b8b-4dac-a144-e9cf00d8b9cc"
+# META         },
+# META         {
+# META           "id": "c683a58d-3109-458d-8cb3-da991c23a31e"
 # META         }
 # META       ]
 # META     }
@@ -22,9 +25,62 @@
 
 # MARKDOWN ********************
 
-# # Table DDL
-# 
-# ## Control
+# # Parameters
+
+# CELL ********************
+
+environment = "dev"
+
+lakehouse_name = "IGDBAnalytics" if environment == "prod" else "IGDBAnalytics_Dev"
+audit_schema = "dev" if environment == "dev" else "steam"
+
+# Constants
+audit_server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
+audit_database = 'IGDBAudit'
+
+print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {audit_database}.{audit_schema}")
+
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Steam Reviews
+
+# CELL ********************
+
+ddl_query = f"""
+create table if not exists {lakehouse_name}.bronze.steamReviews (
+    app_id BIGINT
+    , recommendationid STRING
+    , review_json STRING
+    , insert_execution_id STRING
+    , update_execution_id STRING
+)
+USING DELTA
+TBLPROPERTIES (
+    'delta.autoOptimize.optimizeWrite' = 'true',
+    'delta.autoOptimize.autoCompact' = 'true'
+)
+"""
+
+spark.sql(ddl_query)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Audit
 
 # CELL ********************
 
@@ -92,15 +148,5 @@
 
 # META {
 # META   "language": "sparksql",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }

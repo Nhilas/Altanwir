@@ -100,6 +100,7 @@
 | ``retry`` | ``load_status`` | Orchestration | Manual status set when I debugged a game and want to reload it. |  
 | ``success`` | ``execution_status`` | Control | Execution was successful. |  
 | ``failed + {message}`` | ``execution_status`` | Control | Execution failed + captured failure message. |  
+| ``aborted`` | ``execution_status`` | Control | Run encountered 403 and was aborted to prevent IP locking. |  
 | ``in-progress`` | ``execution_status`` | Control | Execution currently running. |  
 | ``empty`` | ``execution_status`` | Control | Execution returned no reviews. |  
 | ``initial`` | ``execution_type``/``load_type`` | Control/Orchestration | Initial historical load |  

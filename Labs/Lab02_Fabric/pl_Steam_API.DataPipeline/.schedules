@@ -11,6 +11,28 @@
         "localTimeZoneId": "GTB Standard Time",
         "interval": 60
       }
+    },
+    {
+      "enabled": true,
+      "jobType": "Execute",
+      "configuration": {
+        "type": "Daily",
+        "startDateTime": "2026-04-02T00:00:00",
+        "endDateTime": "2027-04-02T00:00:00",
+        "localTimeZoneId": "GTB Standard Time",
+        "times": [
+          "21:00",
+          "22:00",
+          "23:00",
+          "00:00",
+          "01:00",
+          "02:00",
+          "03:00",
+          "04:00",
+          "05:00",
+          "06:00"
+        ]
+      }
     }
   ]
 }

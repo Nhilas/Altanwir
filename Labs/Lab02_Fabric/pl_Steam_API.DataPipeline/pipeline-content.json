@@ -76,11 +76,11 @@
       },
       "max_threads": {
         "type": "int",
-        "defaultValue": 8
+        "defaultValue": 6
       },
       "game_limit": {
         "type": "int",
-        "defaultValue": 40
+        "defaultValue": 30
       },
       "batch_limit": {
         "type": "int",

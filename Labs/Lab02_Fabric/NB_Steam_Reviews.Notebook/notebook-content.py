@@ -44,6 +44,10 @@
 # - A separate notebook runs every so often and ingests the raw .json files in bronze.steamReviews
 
 
+# MARKDOWN ********************
+
+# # Libraries
+
 # CELL ********************
 
 import pyodbc
@@ -55,10 +59,12 @@ import time
 import uuid
 import concurrent.futures
 import random
+import threading
+
 from datetime import datetime
 from urllib.parse import urlencode
 
-from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type, wait_fixed
 
 # METADATA ********************
 
@@ -69,33 +75,26 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_i
 
 # MARKDOWN ********************
 
-# ## Parameters
+# # Parameters
 
-# PARAMETERS CELL ********************
-
-# Constants
-NAMESPACE_ALTANWIR = uuid.UUID('f81d4fae-7dec-11d0-a765-00a0c91e6bf6')
-audit_server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
-audit_database = 'IGDBAudit'
-lakehouse_info = notebookutils.lakehouse.get("IGDBAnalytics")
-abfs_root = f"{lakehouse_info['properties']['abfsPath']}"   # necessary for pipeline runs, can be commented for dev runs
+# CELL ********************
 
 # Run Configurations
-run_id = 'RetryEmptyLoadsBug1'
+run_id = 'Debug4031'
 load_type = 'initial'
 max_threads = 6
 
 # Limits
-game_limit = 5         # games per run
-batch_limit = 60       # batch per game. each batch is 100 reviews
+game_limit = 2         # games per run
+batch_limit = 20       # batch per game. each batch is 100 reviews
 retry_limit = 5         # how many retries in case of a 429 code from steam
 jitter = 5              # maximum amount of seconds waiting between each batch
 
 # Debug
-targeted_reload = "(241540)"        # format this as a sql in clause. keep it as an empty string or comment otherwise
+targeted_reload = ""        # format this as a sql in clause. keep it as an empty string or comment otherwise
 
 # Retry Configurations
-wait_fixed = 10         # minimum retry wait of 10 seconds
+wait_fixed_seconds = 10         # minimum retry wait of 10 seconds
 wait_config = {
     "multiplier": 1     # the exponent
     , "max": 600        # max wait value
@@ -110,11 +109,46 @@ wait_config = {
 
 # MARKDOWN ********************
 
-# ## Functions
+# ## Variables
+
+# CELL ********************
+
+# kill switch in case of 403 response codes
+kill_switch = threading.Event()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "jupyter_python"
+# META }
 
 # MARKDOWN ********************
 
-# ### connect_audit_wh
+# ## Constants
+
+# PARAMETERS CELL ********************
+
+NAMESPACE_ALTANWIR = uuid.UUID('f81d4fae-7dec-11d0-a765-00a0c91e6bf6')
+audit_server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
+audit_database = 'IGDBAudit'
+lakehouse_info = notebookutils.lakehouse.get("IGDBAnalytics")
+abfs_root = f"{lakehouse_info['properties']['abfsPath']}"   # necessary for pipeline runs, can be commented for dev runs
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "jupyter_python"
+# META }
+
+# MARKDOWN ********************
+
+# # Functions
+
+# MARKDOWN ********************
+
+# ## connect_audit_wh
 
 # CELL ********************
 
@@ -140,7 +174,7 @@ def connect_audit_wh():
 
 # MARKDOWN ********************
 
-# ### save_reviews
+# ## save_reviews
 
 # CELL ********************
 
@@ -164,7 +198,7 @@ def save_reviews_to_path(app_id, path, batch, reviews):
 
 # MARKDOWN ********************
 
-# ### request_steam_reviews
+# ## request_steam_reviews
 
 # CELL ********************
 
@@ -186,14 +220,17 @@ class SteamServerError(Exception):
     pass
 
 class SteamError(Exception):
-    pass    
+    pass
+
+class SteamForbiddenError(Exception):
+    pass
 
 # this wraps around requestSteamReviews and is only called if the exception is raised as a class called 'SteamRateLimit'
 # it will attempt to connect to steam following the random_exponential pattern, for a limited amount of times
 # right before it retries, it calls log_retry_state to print out some data for transparency
 @retry(
         stop=stop_after_attempt(retry_limit)
-        , wait=wait_fixed + wait_random_exponential(**wait_config)
+        , wait=wait_fixed(wait_fixed_seconds) + wait_random_exponential(**wait_config)
         , retry=retry_if_exception_type((SteamRateLimit, SteamServerError))
         , before_sleep=log_retry_state
 )
@@ -216,7 +253,9 @@ def request_steam_reviews(app_id, last_cursor, session_instance):
     response = session_instance.get(base_url, params=params)
 
     # raises a custom exception for rate limiting or server backend error which triggers @retry
-    if response.status_code == 429:
+    if response.status_code ==403:
+        raise SteamForbiddenError("403 Forbidden")
+    elif response.status_code == 429:
         raise SteamRateLimit("Throttled by Steam")
     elif response.status_code >= 500:
         raise SteamServerError(f"Steam Server Error: {response.status_code}")
@@ -244,7 +283,7 @@ def request_steam_reviews(app_id, last_cursor, session_instance):
 
 # MARKDOWN ********************
 
-# ### process_batch
+# ## process_batch
 
 # CELL ********************
 
@@ -280,6 +319,12 @@ def process_batch(app_id, load_type, high_water_mark, start_cursor):
     try:
         with requests.Session() as session:
             while batch <= batch_limit:
+                # if any thread returns a 403 error kill the entire process to avoid ip ban
+                if kill_switch.is_set():
+                    print(f"[{app_id}]\t\tBATCH: Kill switch is active. Execution is halted")
+                    audit["execution_status"] = "aborted"
+                    break
+                
                 reviews, new_cursor = request_steam_reviews(app_id, cursor, session) 
 
                 # happy path: save the reviews of this batch
@@ -328,7 +373,11 @@ def process_batch(app_id, load_type, high_water_mark, start_cursor):
                     time.sleep(wait)                            
 
                 batch += 1
-
+    except SteamForbiddenError as e:
+        kill_switch.set()
+        audit["execution_status"] = f"failed: {str(e)}"
+        audit["load_status"] = 'failed'
+        print(f"[{app_id}]\t\tBATCH: Encountered 403: {e}. Run aborted.")
     except Exception as e:
         audit["execution_status"] = f"failed: {str(e)}"
         audit["load_status"] = "failed"
@@ -384,7 +433,7 @@ games_list = db_cursor.fetchall()
 
 conn.close()
 
-print(f"MAIN: Starting orchestration for {len(games_list)} games, load_type = '{load_type}'")
+print(f"MAIN: Starting orchestration for {len(games_list)} games, load_type = '{load_type}'; run_id = {run_id}")
 print(f"MAIN: Game list is: {games_list}")
 print(f"MAIN: Setup is: \n\tmax threads = {max_threads} \n\tgame_limit = {game_limit} \n\tbatch_limit = {batch_limit}x100 reviews \n\tjitter between 1 and {jitter} seconds")
 if targeted_reload: print(f"MAIN:\tTargeted reload is enabled")

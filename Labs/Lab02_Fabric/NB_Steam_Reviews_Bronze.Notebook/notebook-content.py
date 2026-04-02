@@ -180,34 +180,6 @@ def update_audit (executions_list=[]):
 # META   "language_group": "synapse_pyspark"
 # META }
 
-# CELL ********************
-
-conn = connect_audit_wh()
-db_cursor = conn.cursor()
-select_query = f"""
-    select
-        app_id as app_id
-        , lower(execution_id) as execution_id
-        , output_path as output_path
-        , retrieved_reviews as retrieved_reviews
-    from {audit_schema}.loadControlReviews
-    where execution_type = '{load_type}'
-        and is_loaded = 0
-        and retrieved_reviews > 0
-"""
-
-db_cursor.execute(select_query)
-games_list = db_cursor.fetchall()
-db_cursor.close()
-conn.close()
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
 # MARKDOWN ********************
 
 # # Main

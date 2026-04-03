@@ -94,29 +94,49 @@ print(f"Loading from {source_path} into silver.steamreviews") # {target_path}")
 
 # CELL ********************
 
-df_raw = spark.read.format("delta").load(source_abfs).select("app_id", "recommendationid", "review_json")
+df_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
 
 df_top_10_games = df_raw.groupBy("app_id") \
     .agg(f.count("*").alias("total_reviews")) \
     .withColumn("rn", f.row_number().over(Window.orderBy(f.col("total_reviews").desc()))) \
     .filter(f.col("rn") <= 10 )
 
-df_games_total_reviews = df_raw.join(
-    f.broadcast(df_top_10_games)
-    , "app_id"
-    , "inner"
-)
+df_games_total_reviews = df_raw \
+    .join(
+        f.broadcast(df_top_10_games)
+        , "app_id"
+        , "inner"
+    ) \
+    .select("app_id", "review_json")
 
+
+# MARKDOWN ********************
+
+# **Schema**
+# * Taken from top 10 games by total review counts
 
 # CELL ********************
 
 json_rdd = df_games_total_reviews.select("review_json").rdd.map(lambda row: row[0])
 
-df_schema = spark.read.json(json_rdd).printSchema()
+schema_struct = spark.read.json(json_rdd).schema
+
+spark.read.json(json_rdd).printSchema()
 
 # CELL ********************
 
-df_games_loaded = spark.read.json(json_rdd)
+df_games_loaded = df_games_total_reviews \
+    .withColumn("parse_review", f.from_json(f.col("review_json"), schema=schema_struct)) \
+    .select(
+        f.col("app_id"),
+        f.col("parse_review.*")
+    )
+
+# MARKDOWN ********************
+
+# **Check Nulls**
+
+# CELL ********************
 
 # Count nulls per column
 df_games_loaded.select([
@@ -126,25 +146,95 @@ df_games_loaded.select([
 
 # MARKDOWN ********************
 
-# - the most concerning thing about the approximate cardinality is that the # of authors seems to be different than the # of recommendations, suggesting multiple reviews per author?
+# * No problems with nulls it seems. To check empty strings
+
+# MARKDOWN ********************
+
+# **Cardinality**
 
 # CELL ********************
 
-# Approximate cardinality (NDV) per column
+# cardinality (NDV) per column
 df_games_loaded.select([
-    f.approx_count_distinct(c).alias(f"{c}_ndv")
+    f.count_distinct(c).alias(f"{c}_ndv")
     for c in df_games_loaded.columns
 ]).show()
 
 # MARKDOWN ********************
 
-# - brother how do i have non-english reviews when i filtered by english xD 
+# * totals - 1 813 986
+# * author - 1 813 984
+#   - fewer authors than total reviews? same guy did multiple reviews?
+# * reviews - 1 813 986
+# * timestamp_created - 1 801 244
+# * timestamp_updated - 1 801 048
+
+# CELL ********************
+
+# check weird author thing
+# df_games_loaded.printSchema()
+# Find the exact author structs that appear more than once
+df_author_counts = df_games_loaded.groupBy("author").count().filter(f.col("count") > 1)
+
+# Join back to the main dataframe to see both rn=1 and rn=2 side-by-side
+df_games_loaded.join(f.broadcast(df_author_counts).select("author"), on="author", how="inner") \
+    .select("app_id", "recommendationid", "author.steamid", "author.playtime_forever") \
+    .orderBy("author.steamid") \
+    .show(truncate=False)
+
+
+# MARKDOWN ********************
+
+# * yep legit same author different reviews
+# * it's a steam bug i think. reviews are identical, the recommendationid is sequential, it's proly double pressed or something. must deduplicate
+
+# CELL ********************
+
+# 1. Point Spark to your raw JSON landing zone
+raw_json_path = f"{abfs_root}/Files/Steam/Reviews/initial/025486e3-06f8-4674-9fad-743454406dce/00efd8f8-d1d3-50bb-b7c9-414019db8a91/*.json"
+
+# 2. Read the JSONs (Spark automatically turns the root array into rows)
+df_investigate = spark.read.option("multiLine", "true").json(raw_json_path) \
+    .filter(f.col("recommendationid").isin("14208378", "14208379"))
+
+# 3. Show the exact batch files!
+df_investigate.select(
+    f.input_file_name().alias("source_batch_file"), 
+    f.col("recommendationid")
+).show(truncate=False)
+
+
+# MARKDOWN ********************
+
+# **Categories**
 
 # CELL ********************
 
 categorical_cols = [c for c, t in df_games_loaded.dtypes if t in ("string", "boolean")]
 for c in categorical_cols[:5]:
     df_games_loaded.groupBy(c).count().orderBy(f.desc("count")).limit(20).show()
+
+# MARKDOWN ********************
+
+# - brother how do i have non-english reviews when i filtered by english xD 
+
+# MARKDOWN ********************
+
+# * what is `weighted_vote_score` ?
+
+# CELL ********************
+
+df_games_loaded.select("weighted_vote_score").describe().show()
+
+# MARKDOWN ********************
+
+# * it's a string between 0.05 and 0.988 so i guess it's meant to be a percentage?
+# * official docu says it should be float, so it must be converted
+# * no idea what it means, but it's used by steam to assign review 'helpfulness'
+
+# MARKDOWN ********************
+
+# # Main
 
 # CELL ********************
 
@@ -171,10 +261,6 @@ raw_review_schema = StructType([
 
 print(raw_review_schema)
 
-
-# MARKDOWN ********************
-
-# # Main
 
 # MARKDOWN ********************
 

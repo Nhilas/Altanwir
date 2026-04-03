@@ -322,6 +322,229 @@
         ]
       },
       {
+        "name": "loadReviewStats",
+        "sourceLineageTag": "[dev].[loadReviewStats]",
+        "columns": [
+          {
+            "name": "run_id",
+            "dataType": "string",
+            "sourceColumn": "run_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "run_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "run_start_time",
+            "dataType": "dateTime",
+            "sourceColumn": "run_start_time",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "run_start_time",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "run_end_time",
+            "dataType": "dateTime",
+            "sourceColumn": "run_end_time",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "run_end_time",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "run_duration",
+            "dataType": "int64",
+            "sourceColumn": "run_duration",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "run_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "min_duration",
+            "dataType": "int64",
+            "sourceColumn": "min_duration",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "min_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "25th_duration",
+            "dataType": "double",
+            "sourceColumn": "25th_duration",
+            "sourceProviderType": "float",
+            "sourceLineageTag": "25th_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "avg_duration",
+            "dataType": "decimal",
+            "sourceColumn": "avg_duration",
+            "sourceProviderType": "decimal",
+            "sourceLineageTag": "avg_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "75th_duration",
+            "dataType": "double",
+            "sourceColumn": "75th_duration",
+            "sourceProviderType": "float",
+            "sourceLineageTag": "75th_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "max_duration",
+            "dataType": "int64",
+            "sourceColumn": "max_duration",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "max_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "retrieved_reviews",
+            "dataType": "int64",
+            "sourceColumn": "retrieved_reviews",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "retrieved_reviews",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "processed_games",
+            "dataType": "int64",
+            "sourceColumn": "processed_games",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "processed_games",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "empty_games",
+            "dataType": "int64",
+            "sourceColumn": "empty_games",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "empty_games",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "failed_executions",
+            "dataType": "int64",
+            "sourceColumn": "failed_executions",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "failed_executions",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "loadReviewStats",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "dev"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
         "name": "loadReviews(1)",
         "sourceLineageTag": "[dev].[loadReviews]",
         "columns": [
@@ -874,6 +1097,229 @@
             "source": {
               "type": "entity",
               "entityName": "loadOrchestratorReviews",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "steam"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "loadReviewStats(1)",
+        "sourceLineageTag": "[steam].[loadReviewStats]",
+        "columns": [
+          {
+            "name": "run_id",
+            "dataType": "string",
+            "sourceColumn": "run_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "run_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "run_start_time",
+            "dataType": "dateTime",
+            "sourceColumn": "run_start_time",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "run_start_time",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "run_end_time",
+            "dataType": "dateTime",
+            "sourceColumn": "run_end_time",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "run_end_time",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "run_duration",
+            "dataType": "int64",
+            "sourceColumn": "run_duration",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "run_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "min_duration",
+            "dataType": "int64",
+            "sourceColumn": "min_duration",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "min_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "25th_duration",
+            "dataType": "double",
+            "sourceColumn": "25th_duration",
+            "sourceProviderType": "float",
+            "sourceLineageTag": "25th_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "avg_duration",
+            "dataType": "decimal",
+            "sourceColumn": "avg_duration",
+            "sourceProviderType": "decimal",
+            "sourceLineageTag": "avg_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "75th_duration",
+            "dataType": "double",
+            "sourceColumn": "75th_duration",
+            "sourceProviderType": "float",
+            "sourceLineageTag": "75th_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              },
+              {
+                "name": "PBI_FormatHint",
+                "value": "{\"isGeneralNumber\":true}"
+              }
+            ]
+          },
+          {
+            "name": "max_duration",
+            "dataType": "int64",
+            "sourceColumn": "max_duration",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "max_duration",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "retrieved_reviews",
+            "dataType": "int64",
+            "sourceColumn": "retrieved_reviews",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "retrieved_reviews",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "processed_games",
+            "dataType": "int64",
+            "sourceColumn": "processed_games",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "processed_games",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "empty_games",
+            "dataType": "int64",
+            "sourceColumn": "empty_games",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "empty_games",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "failed_executions",
+            "dataType": "int64",
+            "sourceColumn": "failed_executions",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "failed_executions",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "loadReviewStats",
               "expressionSource": "DatabaseQuery",
               "schemaName": "steam"
             }

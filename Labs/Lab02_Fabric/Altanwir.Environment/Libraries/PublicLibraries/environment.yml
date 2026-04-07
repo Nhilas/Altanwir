@@ -1,0 +1,3 @@
+dependencies:
+  - pip:
+      - emoji==2.15.0

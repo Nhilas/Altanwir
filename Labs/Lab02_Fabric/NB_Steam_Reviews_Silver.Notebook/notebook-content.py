@@ -19,6 +19,10 @@
 # META           "id": "21686009-3b8b-4dac-a144-e9cf00d8b9cc"
 # META         }
 # META       ]
+# META     },
+# META     "environment": {
+# META       "environmentId": "f87d9097-30b5-bb36-473c-1a6d5f085dde",
+# META       "workspaceId": "00000000-0000-0000-0000-000000000000"
 # META     }
 # META   }
 # META }
@@ -32,6 +36,7 @@
 import json
 import emoji
 import re
+import pandas as pd
 
 from delta.tables import DeltaTable
 from pyspark.sql import functions as f
@@ -56,6 +61,13 @@ from pyspark.sql.window import Window
 environment = "dev"
 load_type = "initial"
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # ## Variables
@@ -75,6 +87,13 @@ source_table = DeltaTable.forName(spark, source_path)
 # target_path = f"{lakehouse_name}.silver.steamreviews"
 # target_table = DeltaTable.forName(spark, target_path)
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # ## Constants
@@ -84,11 +103,25 @@ source_table = DeltaTable.forName(spark, source_path)
 audit_server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
 audit_database = 'IGDBAudit'
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 print(f"Silver Steam Reviews ELT Initiated with load_type = '{load_type}'")
 print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {audit_database}.{audit_schema}")
 print(f"Loading from {source_path} into silver.steamreviews") # {target_path}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -112,6 +145,13 @@ df_games_total_reviews = df_raw \
     .select("app_id", "review_json")
 
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # **Schema**
@@ -123,9 +163,23 @@ json_rdd = df_games_total_reviews.select("review_json").rdd.map(lambda row: row[
 
 schema_struct = spark.read.json(json_rdd).schema
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 spark.read.json(json_rdd).printSchema()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -135,6 +189,13 @@ df_games_loaded = df_games_total_reviews \
         f.col("app_id"),
         f.col("parse_review.*")
     )
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -151,6 +212,13 @@ df_games_loaded.select([
     f.count(f.when(f.col(c).isNull(), 1)).alias(f"{c}_nulls")
     for c in df_games_loaded.columns
 ]).show()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -169,9 +237,23 @@ df_games_loaded.select([
 
 # 7819 empty reviews, every other column is clean. lol
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 df_games_loaded.filter(f.col("review") == "").show()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -187,10 +269,24 @@ df_games_loaded.withColumn("review_length", f.char_length(f.trim(f.col("review")
     .groupBy(f.col("review_length")).count().orderBy("review_length").limit(10).show()
     # .groupBy(f.col("review_length")).count().orderBy(f.desc("count")).limit(20).show()
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 df_games_loaded.withColumn("review_length", f.char_length(f.trim(f.col("review")))) \
     .filter(f.col("review_length") == 1).select("app_id", "recommendationid", "review").show(30)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -207,6 +303,13 @@ df_games_loaded.select([
     f.count_distinct(c).alias(f"{c}_ndv")
     for c in df_games_loaded.columns
 ]).show()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -231,6 +334,13 @@ df_games_loaded.join(f.broadcast(df_author_counts).select("author"), on="author"
     .show(truncate=False)
 
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # * yep legit same author different reviews
@@ -252,6 +362,13 @@ df_investigate.select(
 
 # nop it's legit from steam cool
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # **Categories**
@@ -261,6 +378,13 @@ df_investigate.select(
 categorical_cols = [c for c, t in df_games_loaded.dtypes if t in ("string", "boolean")]
 for c in categorical_cols:
     df_games_loaded.groupBy(c).count().orderBy(f.desc("count")).limit(20).show()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -273,6 +397,13 @@ for c in categorical_cols:
 # CELL ********************
 
 df_games_loaded.select("weighted_vote_score").describe().show()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -287,6 +418,13 @@ df_games_loaded.select("weighted_vote_score").describe().show()
 # CELL ********************
 
 df_games_loaded.select("reactions").show(20)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -314,13 +452,28 @@ print(re.sub(r'[\t\n\r\f\v]', '', test))
 print(re.sub(r'\s+', ' ', test).strip())
 
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 test = "This game gets a :thumbs_up: from me!"
 
 print(test)
 
+# clean demoji
 print(re.sub(r'[:_:]', ' ', test))
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -334,6 +487,13 @@ print(re.sub(r':(\w+):', r'\1', test_demoji))
 
 print(re.sub(r':(\w+):', r'\1', test_demoji).replace('_', ' '))
 
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -351,6 +511,13 @@ partial_ascii = re.sub(r'[^\w]{3,}', ' ', test_ascii)
 
 print(partial_ascii)
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 test_ascii = "Amazing game! 10/10 :)"
@@ -360,6 +527,24 @@ print(test_ascii)
 partial_ascii = re.sub(r'[^\w\s]{3,}', ' ', test_ascii)
 
 print(partial_ascii)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# %pip install emoji
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -371,9 +556,27 @@ demoji_text = emoji.demojize(test_emoji)
 
 print(demoji_text)
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
-%pip install emoji
+test_bug1 = "I found a bug"
+test_bug2 = "I was bugged the whole time playing"
+test_bug3 = "My name is vandebug and i hate lagging my ass off"
+
+test1 = re.sub(r'(?i)\bbug|lag', 'GOTCHA', test_bug1)
+print(test1)
+
+test2 = re.sub(r'(?i)\bbug|lag', 'GOTCHA', test_bug2)
+print(test2)
+
+test3 = re.sub(r'(?i)\bbug|lag', 'GOTCHA', test_bug3)
+print(test3)
 
 # MARKDOWN ********************
 
@@ -404,6 +607,13 @@ raw_review_schema = StructType([
 
 deduplicateBy = Window.partitionBy("app_id", "steamid").orderBy(f.col("timestamp_updated").desc())
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 df_bronze_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
@@ -428,6 +638,13 @@ df_bronze_reviews = df_bronze_raw \
         , f.col("parsed_review.written_during_early_access")
     )
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 # remove duplicates, non-english reviews, empty reviews, and enforce strict non-null critical columns
@@ -451,20 +668,128 @@ df_bronze_reviews_cast = df_bronze_reviews_filtered \
     .withColumn("timestampUpdated", f.from_unixtime(f.col("timestamp_updated")).cast(TimestampType())) 
     
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 df_bronze_reviews_cast.show(5)
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+@f.pandas_udf(StringType())
+def demojize_udf(s: pd.Series) -> pd.Series:
+    return s.apply(emoji.demojize)
+
+df_bronze_reviews_demoji = df_bronze_reviews_cast \
+    .withColumn("reviewDemoji", demojize_udf(f.col("review")))
+
+# CELL ********************
+
+df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
+    .withColumn("reviewText",
+                f.trim(
+                    f.regexp_replace(
+                        f.regexp_replace(
+                            f.regexp_replace(
+                                f.col("reviewDemoji")
+                                , r"\[.*?\]|[^\w]{3,}"  # bbcode and ascii removal
+                                , ''
+                            )
+                            , r':(\w+):'
+                            , r'$1'     # demoji removal of : (keep the group, discard the :)
+                        )
+                        , r"_|\s+"    # replace demoji _ with blank, remove whitespace, trim
+                        , ' '
+                    )
+                )
+    )
+
+df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
+    .withColumn("reviewLength", f.length(f.col("reviewText"))) \
+    .withColumn("wordCount", f.size(f.split(f.col("reviewText"), " "))) \
+    .withColumn("vaderRatio", 
+        f.when(f.length(f.col("review")) == 0, 0.0).otherwise(
+            f.length(f.regexp_replace(f.col("review"), r'[^\x00-\x7F]', '')) / f.length(f.col("reviewText")))
+    ) \
+    .withColumn("isUsableForVader", f.col("vaderRatio") >= 0.6) \
+    .withColumn("containsBugReport", f.col("reviewText").rlike(r'(?i)\b(bug|bugs|crash|error|lag|stuck)')) \
+    .withColumn("emotionalIntensity", 
+        f.when(f.length(f.col("review")) == 0, 0.0).otherwise(
+            (f.col("reviewLength") - f.length(f.regexp_replace(f.col("reviewText"), r'!{2,}|[A-Z]', ''))) / f.col("reviewLength"))
+    )                
+
+
+
 # MARKDOWN ********************
 
 # **to-do for review cleansing**
-# 1. Strip BBCode          [b]:thumbs_up:[/b]  →  :thumbs_up:
-# 2. Non-space whitespace  \n \t               →  (space)
-# 3. Demojize              🥔                  →  :potato:
-# 4. Strip :emoji:         :potato:            →  potato
-# 5. Strip ASCII art       ****                →  (gone)
-# 6. Collapse + trim       (multiple spaces)   →  single space
+# 1. demojize → (UDF or pandas_udf)
+# 2. regexp_replace with bundled | pattern → strips
+# 3. regexp_replace for collapse → then trim()
+# 
+# Steps 2 and 3 could be chained .withColumn on the same column, or nested — up to you.
 
 # MARKDOWN ********************
 
 # # Debug
+
+# CELL ********************
+
+df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
+    .withColumn("reviewText_bbCode",
+                f.trim(
+                    f.regexp_replace(
+                        f.col("reviewDemoji")
+                        , r"\[.*?\]|[^\w]{3,}"  # bbcode and ascii removal
+                        , ''
+                    )
+                )
+    ) \
+    .withColumn("reviewText_demoji",
+                f.trim(
+                    f.regexp_replace(
+                        f.regexp_replace(
+                            f.col("reviewDemoji")
+                            , r"\[.*?\]|[^\w]{3,}"  # bbcode and ascii removal
+                            , ''
+                        )
+                        , r':(\w+):'
+                        , r'$1'     # demoji removal of : (keep the group, discard the :)
+                    )
+                )
+    ) \
+    .withColumn("reviewText_final",
+                f.trim(
+                    f.regexp_replace(
+                        f.regexp_replace(
+                            f.regexp_replace(
+                                f.col("reviewDemoji")
+                                , r"\[.*?\]|[^\w]{3,}"  # bbcode and ascii removal
+                                , ''
+                            )
+                            , r':(\w+):'
+                            , r'$1'     # demoji removal of : (keep the group, discard the :)
+                        )
+                        , r"_|\s+"    # replace demoji _ with blank, remove whitespace, trim
+                        , ' '
+                    )
+                )
+    ) \
+    .withColumn("vaderRatio", 
+        f.when(f.length(f.col("review")) == 0, 0.0).otherwise(
+            f.length(f.regexp_replace(f.col("review"), r'[^\x00-\x7F]', '')) / f.length(f.col("review")))
+    ) \
+    .withColumn("isUsableForVader", f.col("vaderRatio") >= 0.6)           
+

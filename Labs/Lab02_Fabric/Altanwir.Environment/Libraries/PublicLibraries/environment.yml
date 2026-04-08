@@ -1,3 +1,4 @@
 dependencies:
   - pip:
+      - vadersentiment==3.3.2
       - emoji==2.15.0

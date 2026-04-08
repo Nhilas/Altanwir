@@ -41,6 +41,7 @@ import pandas as pd
 from delta.tables import DeltaTable
 from pyspark.sql import functions as f
 from pyspark.sql.types import StructType, StructField, StringType, ByteType, IntegerType, LongType, FloatType, BooleanType, TimestampType
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # debug / exploration
 from pyspark.sql.window import Window
@@ -677,25 +678,31 @@ df_bronze_reviews_cast = df_bronze_reviews_filtered \
 
 # CELL ********************
 
-df_bronze_reviews_cast.show(5)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
 @f.pandas_udf(StringType())
 def demojize_udf(s: pd.Series) -> pd.Series:
     return s.apply(emoji.demojize)
 
-df_bronze_reviews_demoji = df_bronze_reviews_cast \
-    .withColumn("reviewDemoji", demojize_udf(f.col("review")))
+# CELL ********************
+
+sia_struct = StructType([
+        StructField("pos", FloatType())
+            , StructField("compound", FloatType())
+            , StructField("neu", FloatType())
+            , StructField("neg", FloatType())
+        ])
+
+@f.pandas_udf(sia_struct)
+def sentiment_compound(r: pd.Series) -> pd.DataFrame:
+    sia = SentimentIntensityAnalyzer()
+
+    analysis_series = r.apply(lambda review: sia.polarity_scores(review) if review else {"pos": None, "compound": None, "neu": None, "neg": None})
+
+    return pd.DataFrame(analysis_series.tolist())[["pos", "compound", "neu", "neg"]]
 
 # CELL ********************
+
+df_bronze_reviews_demoji = df_bronze_reviews_cast \
+    .withColumn("reviewDemoji", demojize_udf(f.col("review")))
 
 df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
     .withColumn("reviewText",
@@ -703,14 +710,26 @@ df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
                     f.regexp_replace(
                         f.regexp_replace(
                             f.regexp_replace(
-                                f.col("reviewDemoji")
-                                , r"\[.*?\]|[^\w]{3,}"  # bbcode and ascii removal
-                                , ''
-                            )
+                                f.regexp_replace(
+                                    f.regexp_replace(
+                                        f.regexp_replace(
+                                            f.col("reviewDemoji") # bbcode removal -> remove any [ ] pair with anything inside i.e. [b] [/b]
+                                            , r"\[.*?\]"
+                                            ,''
+                                        )
+                                        , r"[^\w!\?\s]{3,}|#|https?://\S+"  # ascii, hashtag, link removal ->  remove any non-alphanumeric non-! character that repeats at least 3 times in sequence, remove any #, remove anything that starts with https:// followed by any repeating non-whitespace character
+                                        , ''
+                                    )
+                                    , r"(:heart_suit:){7,}"     # replace a string of 7+ x :heart_suit: (the demojized version of the character steam uses for censorship)
+                                    , 'fucking'
+                                    )
+                                , r"(:heart_suit:){2,}"    # catchall for any other censor
+                                , 'fuck'
+                                )
                             , r':(\w+):'
-                            , r'$1'     # demoji removal of : (keep the group, discard the :)
+                            , r'$1'     # demoji removal of ':' -> replace any group found between two ::, of alphanumeric characters that repeat at least once, with itself (just without the :)
                         )
-                        , r"_|\s+"    # replace demoji _ with blank, remove whitespace, trim
+                        , r"_|\s+"    # replace _ OR any whitespace character that repeats at least once with a single space
                         , ' '
                     )
                 )
@@ -720,26 +739,84 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
     .withColumn("reviewLength", f.length(f.col("reviewText"))) \
     .withColumn("wordCount", f.size(f.split(f.col("reviewText"), " "))) \
     .withColumn("vaderRatio", 
-        f.when(f.length(f.col("review")) == 0, 0.0).otherwise(
-            f.length(f.regexp_replace(f.col("review"), r'[^\x00-\x7F]', '')) / f.length(f.col("reviewText")))
+        f.when(f.col("reviewLength") == 0, 0.0).otherwise(
+            f.length(f.regexp_replace(f.col("reviewText"), r'[^\x00-\x7F]', '')) / f.col("reviewLength"))
     ) \
     .withColumn("isUsableForVader", f.col("vaderRatio") >= 0.6) \
     .withColumn("containsBugReport", f.col("reviewText").rlike(r'(?i)\b(bug|bugs|crash|error|lag|stuck)')) \
     .withColumn("emotionalIntensity", 
-        f.when(f.length(f.col("review")) == 0, 0.0).otherwise(
-            (f.col("reviewLength") - f.length(f.regexp_replace(f.col("reviewText"), r'!{2,}|[A-Z]', ''))) / f.col("reviewLength"))
-    )                
+        f.when(f.col("reviewLength") == 0, 0.0) \
+            .otherwise((f.col("reviewLength") - f.length(f.regexp_replace(f.col("reviewText"), r'!{2,}|[A-Z]', ''))) / f.col("reviewLength"))
+    ) \
+    .withColumn("sentimentAnalysis", 
+        f.when(f.col("isUsableForVader"), sentiment_compound(f.col("reviewText"))) \
+            .otherwise(None)
+     ) \
+    .select(
+        "app_id"
+        , "recommendationid"
+        , "steamid"
+        , "language"
+        , "reviewText"
+        , "voted_up"
+        , "votes_up"
+        , "votes_funny"
+        , "weightedVoteScore"
+        , "playtimeForever"
+        , "playtimeAtReview"
+        , "timestampCreated"
+        , "timestampUpdated"
+        , "refunded"
+        , "written_during_early_access"
+        , "reviewLength"
+        , "wordCount"
+        , "vaderRatio"
+        , "isUsableForVader"
+        , "containsBugReport"
+        , "emotionalIntensity"
+        , "sentimentAnalysis.pos"
+        , "sentimentAnalysis.compound"
+        , "sentimentAnalysis.neu"
+        , "sentimentAnalysis.neg"
+    )
 
+columns_to_hash = [c for c in df_bronze_reviews_enhanced.columns if c not in ['app_id', 'recommendationid'] ]
 
+df_bronze_reviews_final = df_bronze_reviews_enhanced \
+    .withColumn("hash", f.sha2(f.concat_ws(",", *[f.col(c) for c in columns_to_hash]), 256)) \
+    .selectExpr(
+        "sha2(cast(concat(cast(app_id as string), recommendationid) as string), 256)   as reviewKey"
+        , "app_id                                                                       as eId"
+        , "recommendationid                                                             as recommendationId"
+        , "steamid                                                                      as authorId"
+        , "language                                                                     as language"
+        , "reviewText                                                                   as reviewText"
+        , "voted_up                                                                     as votedUp"
+        , "votes_up                                                                     as votesUp"
+        , "votes_funny                                                                  as votesFunny"
+        , "weightedVoteScore                                                            as weightedVoteScore"
+        , "playtimeForever                                                              as playtimeForever"
+        , "playtimeAtReview                                                             as playtimeAtReview"
+        , "timestampCreated                                                             as timestampCreated"
+        , "timestampUpdated                                                             as timestampUpdated"
+        , "refunded                                                                     as refunded"
+        , "written_during_early_access                                                  as writtenDuringEarlyAccess"
+        , "reviewLength                                                                 as reviewLength"
+        , "wordCount                                                                    as wordCount"
+        , "vaderRatio                                                                   as vaderRatio"
+        , "isUsableForVader                                                             as isUsableForVader"
+        , "containsBugReport                                                            as containsBugReport"
+        , "emotionalIntensity                                                           as emotionalIntensity"
+        , "pos                                                                          as sentimentPos"
+        , "compound                                                                     as sentimentCompound"
+        , "neu                                                                          as sentimentNeu"
+        , "neg                                                                          as sentimentNeg"
+        , "hash"
+    )
 
-# MARKDOWN ********************
+# CELL ********************
 
-# **to-do for review cleansing**
-# 1. demojize → (UDF or pandas_udf)
-# 2. regexp_replace with bundled | pattern → strips
-# 3. regexp_replace for collapse → then trim()
-# 
-# Steps 2 and 3 could be chained .withColumn on the same column, or nested — up to you.
+df_bronze_reviews_final.write.mode("overwrite").saveAsTable("silverSteamReviewsTest")
 
 # MARKDOWN ********************
 

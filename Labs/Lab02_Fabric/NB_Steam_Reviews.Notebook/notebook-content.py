@@ -433,97 +433,100 @@ games_list = db_cursor.fetchall()
 
 conn.close()
 
-print(f"MAIN: Starting orchestration for {len(games_list)} games, load_type = '{load_type}'; run_id = {run_id}")
-print(f"MAIN: Game list is: {games_list}")
-print(f"MAIN: Setup is: \n\tmax threads = {max_threads} \n\tgame_limit = {game_limit} \n\tbatch_limit = {batch_limit}x100 reviews \n\tjitter between 1 and {jitter} seconds")
-if targeted_reload: print(f"MAIN:\tTargeted reload is enabled")
+if len(games_list) == 0:
+    print("MAIN: No games to process. Orchestrator shutdown.")
+else:
+    print(f"MAIN: Starting orchestration for {len(games_list)} games, load_type = '{load_type}'; run_id = {run_id}")
+    print(f"MAIN: Game list is: {games_list}")
+    print(f"MAIN: Setup is: \n\tmax threads = {max_threads} \n\tgame_limit = {game_limit} \n\tbatch_limit = {batch_limit}x100 reviews \n\tjitter between 1 and {jitter} seconds")
+    if targeted_reload: print(f"MAIN:\tTargeted reload is enabled")
 
-# 2. Spin up the Thread Pool
-with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
-    
-    # Dictionary comprehension to map the Future object back to the app_id
-    # This immediately submits all jobs to the pool.
-    future_to_game = {
-        executor.submit(
-            process_batch, 
-            game[0],        # app_id
-            load_type, 
-            game[1],        # high_water_mark
-            game[2]         # last_cursor
-        ): game[0] 
-        for game in games_list
-    }
+    # 2. Spin up the Thread Pool
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+        
+        # Dictionary comprehension to map the Future object back to the app_id
+        # This immediately submits all jobs to the pool.
+        future_to_game = {
+            executor.submit(
+                process_batch, 
+                game[0],        # app_id
+                load_type, 
+                game[1],        # high_water_mark
+                game[2]         # last_cursor
+            ): game[0] 
+            for game in games_list
+        }
 
-    # 3. Process results as they finish
-    # as_completed() yields the futures as soon as they are done, regardless of start order.
-    for future in concurrent.futures.as_completed(future_to_game):
-        app_id = future_to_game[future]
-        try:
-            returned_app_id, audit_dict = future.result()
+        # 3. Process results as they finish
+        # as_completed() yields the futures as soon as they are done, regardless of start order.
+        for future in concurrent.futures.as_completed(future_to_game):
+            app_id = future_to_game[future]
+            try:
+                returned_app_id, audit_dict = future.result()
 
-            print(f"[{app_id}]\tMAIN: Logging audit...")
+                print(f"[{app_id}]\tMAIN: Logging audit...")
 
-            conn = connect_audit_wh()
-            db_cursor = conn.cursor()
-            
-            queryControl = """
-                insert into steam.loadControlReviews (
-                    app_id
+                conn = connect_audit_wh()
+                db_cursor = conn.cursor()
+                
+                queryControl = """
+                    insert into steam.loadControlReviews (
+                        app_id
+                        , run_id
+                        , execution_id
+                        , execution_type
+                        , execution_start_time
+                        , execution_end_time
+                        , execution_duration
+                        , execution_status
+                        , retrieved_reviews
+                        , first_retrieved_timestamp
+                        , last_retrieved_timestamp
+                        , last_retrieved_cursor
+                        , output_path
+                    )
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                argsControl = [
+                    audit_dict["app_id"]
                     , run_id
-                    , execution_id
-                    , execution_type
-                    , execution_start_time
-                    , execution_end_time
-                    , execution_duration
-                    , execution_status
-                    , retrieved_reviews
-                    , first_retrieved_timestamp
-                    , last_retrieved_timestamp
-                    , last_retrieved_cursor
-                    , output_path
-                )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
-            argsControl = [
-                audit_dict["app_id"]
-                , run_id
-                , audit_dict["execution_id"]
-                , load_type
-                , audit_dict["execution_start_time"]
-                , audit_dict["execution_end_time"]
-                , audit_dict["execution_duration"]
-                , audit_dict["execution_status"]
-                , audit_dict["retrieved_reviews"]
-                , audit_dict["first_retrieved_timestamp"]
-                , audit_dict["last_retrieved_timestamp"]
-                , audit_dict["last_retrieved_cursor"]
-                , audit_dict["output_path"]
-            ]
+                    , audit_dict["execution_id"]
+                    , load_type
+                    , audit_dict["execution_start_time"]
+                    , audit_dict["execution_end_time"]
+                    , audit_dict["execution_duration"]
+                    , audit_dict["execution_status"]
+                    , audit_dict["retrieved_reviews"]
+                    , audit_dict["first_retrieved_timestamp"]
+                    , audit_dict["last_retrieved_timestamp"]
+                    , audit_dict["last_retrieved_cursor"]
+                    , audit_dict["output_path"]
+                ]
 
-            queryOrchestrator = """
-                update steam.loadOrchestratorReviews
-                set load_status = ?
-                where app_id = ?
-                    and load_type = ?
-            """
-            argsOrchestrator = [
-                audit_dict["load_status"]
-                , audit_dict["app_id"]
-                , audit_dict["execution_type"]
-            ]
+                queryOrchestrator = """
+                    update steam.loadOrchestratorReviews
+                    set load_status = ?
+                    where app_id = ?
+                        and load_type = ?
+                """
+                argsOrchestrator = [
+                    audit_dict["load_status"]
+                    , audit_dict["app_id"]
+                    , audit_dict["execution_type"]
+                ]
 
-            # update the audit tables
-            db_cursor.execute(queryControl,argsControl)
-            db_cursor.execute(queryOrchestrator,argsOrchestrator)
-            
-            conn.commit()
-            print(f"[{app_id}]\tMAIN: Game finished with execution status = '{audit_dict['execution_status']}', load status = '{audit_dict['load_status']}'")
-        except Exception as exc:
-            print(f"[{app_id}]\tMAIN: Thread generated an unhandled exception: {exc}")
-        finally:
-            if 'conn' in locals(): conn.close()            
+                # update the audit tables
+                db_cursor.execute(queryControl,argsControl)
+                db_cursor.execute(queryOrchestrator,argsOrchestrator)
+                
+                conn.commit()
+                print(f"[{app_id}]\tMAIN: Game finished with execution status = '{audit_dict['execution_status']}', load status = '{audit_dict['load_status']}'")
+            except Exception as exc:
+                print(f"[{app_id}]\tMAIN: Thread generated an unhandled exception: {exc}")
+            finally:
+                if 'conn' in locals(): conn.close()            
 
-print("MAIN: All threads completed. Orchestrator shutdown.")
+    print("MAIN: All threads completed. Orchestrator shutdown.")
 
 # METADATA ********************
 

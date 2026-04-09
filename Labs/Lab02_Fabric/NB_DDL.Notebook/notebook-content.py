@@ -54,6 +54,7 @@ print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {au
 
 # CELL ********************
 
+# Bronze Reviews
 ddl_query = f"""
 create table if not exists {lakehouse_name}.bronze.steamReviews (
     app_id BIGINT
@@ -66,6 +67,60 @@ USING DELTA
 TBLPROPERTIES (
     'delta.autoOptimize.optimizeWrite' = 'true',
     'delta.autoOptimize.autoCompact' = 'true'
+)
+"""
+
+spark.sql(ddl_query)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+# Silver Reviews
+ddl_query = f"""
+create table if not exists {lakehouse_name}.silver.steamReviews (
+    reviewKey STRING
+    , eId STRING
+    , recommendationId STRING
+    , authorId STRING
+  g:\\Work\\IGDBAnalytics\\d1206eb3-2259-44b8-844a-409f1a63f284\\SynapseNotebook\\fc8860e3-b365-4e61-a0a9-20741876aa88\\NB_Steam_Reviews_Bronze\\NB_Steam_Reviews_Bronze.ipynb$0  , language STRING
+    , reviewRaw STRING
+    , reviewCleaned STRING
+    , votedUp BOOLEAN
+    , votesUp INT
+    , votesFunny INT
+    , weightedVoteScore FLOAT
+    , playtimeForever INT
+    , playtimeAtReview INT
+    , timestampCreated TIMESTAMP
+    , timestampUpdated TIMESTAMP
+    , refunded BOOLEAN
+    , writtenDuringEarlyAccess BOOLEAN
+    , reviewLength INT
+    , wordCount INT
+    , vaderRatio FLOAT
+    , isUsableForVader BOOLEAN
+    , containsBugReport BOOLEAN
+    , emotionalIntensity FLOAT
+    , sentimentPositive FLOAT
+    , sentimentCompound FLOAT
+    , sentimentNeutral FLOAT
+    , sentimentNegative FLOAT
+    , insert_run_id STRING
+    , update_run_id STRING
+    , hash STRING
+)
+USING DELTA
+CLUSTER BY (eId)
+TBLPROPERTIES (
+    'delta.autoOptimize.optimizeWrite' = 'true',
+    'delta.autoOptimize.autoCompact' = 'true',
+    'delta.parquet.vorder.enabled' = 'true'
 )
 """
 

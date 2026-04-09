@@ -579,6 +579,13 @@ print(test2)
 test3 = re.sub(r'(?i)\bbug|lag', 'GOTCHA', test_bug3)
 print(test3)
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # # Main
@@ -682,6 +689,13 @@ df_bronze_reviews_cast = df_bronze_reviews_filtered \
 def demojize_udf(s: pd.Series) -> pd.Series:
     return s.apply(emoji.demojize)
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 sia_struct = StructType([
@@ -698,6 +712,13 @@ def sentiment_compound(r: pd.Series) -> pd.DataFrame:
     analysis_series = r.apply(lambda review: sia.polarity_scores(review) if review else {"pos": None, "compound": None, "neu": None, "neg": None})
 
     return pd.DataFrame(analysis_series.tolist())[["pos", "compound", "neu", "neg"]]
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -757,6 +778,7 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
         , "recommendationid"
         , "steamid"
         , "language"
+        , 'review'
         , "reviewText"
         , "voted_up"
         , "votes_up"
@@ -786,11 +808,12 @@ df_bronze_reviews_final = df_bronze_reviews_enhanced \
     .withColumn("hash", f.sha2(f.concat_ws(",", *[f.col(c) for c in columns_to_hash]), 256)) \
     .selectExpr(
         "sha2(cast(concat(cast(app_id as string), recommendationid) as string), 256)   as reviewKey"
-        , "app_id                                                                       as eId"
+        , "cast(app_id as string)                                                       as eId"
         , "recommendationid                                                             as recommendationId"
         , "steamid                                                                      as authorId"
         , "language                                                                     as language"
-        , "reviewText                                                                   as reviewText"
+        , "review                                                                       as reviewRaw"
+        , "reviewText                                                                   as reviewCleaned"
         , "voted_up                                                                     as votedUp"
         , "votes_up                                                                     as votesUp"
         , "votes_funny                                                                  as votesFunny"
@@ -807,16 +830,30 @@ df_bronze_reviews_final = df_bronze_reviews_enhanced \
         , "isUsableForVader                                                             as isUsableForVader"
         , "containsBugReport                                                            as containsBugReport"
         , "emotionalIntensity                                                           as emotionalIntensity"
-        , "pos                                                                          as sentimentPos"
+        , "pos                                                                          as sentimentPositive"
         , "compound                                                                     as sentimentCompound"
-        , "neu                                                                          as sentimentNeu"
-        , "neg                                                                          as sentimentNeg"
+        , "neu                                                                          as sentimentNeutral"
+        , "neg                                                                          as sentimentNegative"
         , "hash"
     )
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
 df_bronze_reviews_final.write.mode("overwrite").saveAsTable("silverSteamReviewsTest")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -870,3 +907,10 @@ df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
     ) \
     .withColumn("isUsableForVader", f.col("vaderRatio") >= 0.6)           
 
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }

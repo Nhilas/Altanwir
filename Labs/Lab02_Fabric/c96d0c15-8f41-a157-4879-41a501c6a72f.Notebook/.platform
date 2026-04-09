@@ -2,10 +2,11 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
   "metadata": {
     "type": "Notebook",
-    "displayName": "NB_Steam_Reviews_Silver_Dev"
+    "displayName": "NB_Steam_Reviews_Silver",
+    "description": "New notebook"
   },
   "config": {
     "version": "2.0",
-    "logicalId": "41ba3da1-c3b4-bcdd-45e2-c76ba861890d"
+    "logicalId": "c96d0c15-8f41-a157-4879-41a501c6a72f"
   }
 }

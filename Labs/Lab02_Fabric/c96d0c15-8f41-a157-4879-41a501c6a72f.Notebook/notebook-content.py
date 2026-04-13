@@ -33,8 +33,12 @@
 
 # CELL ********************
 
+import struct
+import pyodbc
+import json
 import emoji
 import pandas as pd
+import notebookutils
 
 from delta.tables import DeltaTable
 
@@ -59,7 +63,7 @@ from pyspark.sql.window import Window
 
 environment = "dev"
 load_type = "incremental"
-run_id = "silver_reviews_dev_1"
+run_id = "silver_reviews_dev_3"
 
 # METADATA ********************
 
@@ -83,6 +87,8 @@ abfs_root = f"{lakehouse_info['properties']['abfsPath']}"
 source_abfs = f"{abfs_root}/Tables/bronze/steamreviews"
 source_path = f"{lakehouse_name}.bronze.steamreviews"
 source_table = DeltaTable.forName(spark, source_path)
+
+external_games_path = f"{lakehouse_name}.silver.externalgames"
 
 target_path = f"{lakehouse_name}.silver.steamreviews"
 target_table = DeltaTable.forName(spark, target_path)
@@ -157,11 +163,21 @@ print(f"Loading from {source_path} into {target_path}")
 
 # # Functions
 
+# MARKDOWN ********************
+
+# ## demojize
+
 # CELL ********************
 
 @f.pandas_udf(StringType())
 def demojize_udf(s: pd.Series) -> pd.Series:
     return s.apply(emoji.demojize)
+
+# MARKDOWN ********************
+
+# ## sentiment_compound
+
+# CELL ********************
 
 @f.pandas_udf(sia_schema)
 def sentiment_compound(r: pd.Series) -> pd.DataFrame:
@@ -173,12 +189,140 @@ def sentiment_compound(r: pd.Series) -> pd.DataFrame:
 
 # MARKDOWN ********************
 
+# ## connect_audit_wh
+
+# CELL ********************
+
+def connect_audit_wh():
+
+    # token formation
+    token = notebookutils.credentials.getToken("pbi")
+    token_bytes = token.encode("utf-16-le")
+    token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
+
+    # connection string + connection
+    conn_str = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={audit_server};DATABASE={audit_database};Encrypt=yes;TrustServerCertificate=no"
+    conn = pyodbc.connect(conn_str, attrs_before={1256: token_struct})
+
+    return conn
+
+# MARKDOWN ********************
+
+# ## check_version
+
+# CELL ********************
+
+def check_version(table_name):
+    query = f"""
+        select top 1
+            latest_source_version
+        from {audit_schema}.versionControl
+        where table_name = ?
+        order by
+            commit_version desc
+    """
+
+    conn = connect_audit_wh()
+    db_cursor = conn.cursor()
+
+    try:
+        db_cursor.execute(query, table_name)
+        latest_source_version = db_cursor.fetchone()[0]
+
+        print(f"Retrieved last source version for {table_name}: {latest_source_version}")        
+        return latest_source_version
+    except Exception as e:
+        print(f"Failed to retrieve last source version for {table_name} from {audit_database}.{audit_schema}.versionControl: {e}")
+    finally:
+        db_cursor.close()
+        conn.close()    
+
+# MARKDOWN ********************
+
+# ## insert_version
+
+# CELL ********************
+
+def insert_version(audit_row, latest_source_version):
+    insert_query = f"""
+        insert into {audit_schema}.versionControl (
+            table_name
+            , run_id
+            , change_type
+            , commit_version
+            , commit_timestamp
+            , rows_inserted
+            , rows_updated
+            , latest_source_version
+            , audit_notes
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    full_audit_row = audit_row[0].asDict()
+    audit_notes = json.dumps(full_audit_row, default=str)
+
+    insert_parameters = [
+        target_path
+        , run_id
+        , audit_row[0]['operation']
+        , audit_row[0]['version']
+        , audit_row[0]['timestamp']
+        , int(audit_row[0]['operationMetrics']['numTargetRowsInserted'])
+        , int(audit_row[0]['operationMetrics']['numTargetRowsUpdated'])
+        , latest_source_version
+        , audit_notes
+    ]
+
+    conn = connect_audit_wh()
+    db_cursor = conn.cursor()
+
+    try:
+        db_cursor.execute(insert_query, insert_parameters)
+        conn.commit()
+    except Exception as e:
+        print(f"Failed to insert version: {e}")
+        conn.rollback()
+    else:
+        print(f"Successfully logged audit for {target_path} in {audit_schema}.versionControl with the audit_row = {audit_notes}")
+    finally:
+        db_cursor.close()
+        conn.close()
+
+# MARKDOWN ********************
+
 # # Main
 
 # CELL ********************
 
-df_bronze_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
+# Load data from Bronze based on load_type
+if load_type == 'full':
+    df_bronze_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
+elif load_type == 'incremental':
+    latest_source_version = check_version(table_name=target_path)
+    current_source_version = source_table.history(1).select("version").collect()[0][0]
 
+    if latest_source_version is None:
+        print(f"No previous source version found for {target_path} in audit. Defaulting to full load.")
+
+        df_bronze_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
+    elif current_source_version == latest_source_version:
+        print(f"No new version found for {source_path}. Latest version in audit: {latest_source_version}, current version in source: {current_source_version}. Shutting down.")
+        notebookutils.notebook.exit("No new version to process")
+    else:
+        df_bronze_raw = spark.read.format("delta") \
+            .option("readChangeFeed", "true") \
+            .option("startingVersion", latest_source_version+1) \
+            .table(source_path) \
+            .filter(f.col("_change_type").isin("insert", "update_postimage")) \
+            .select("app_id", "review_json")
+else:
+    print(f"Invalid load_type: {load_type}! Shutting down")
+    notebookutils.notebook.exit("Wrong load_type")
+
+# CELL ********************
+
+# basic parsing and flattening of the json review data, to get it ready for cleaning and enrichment
 df_bronze_reviews = df_bronze_raw \
     .withColumn("parsed_review", f.from_json(f.col("review_json"), schema=raw_review_schema)) \
     .select(
@@ -230,6 +374,7 @@ df_bronze_reviews_cast = df_bronze_reviews_filtered \
 df_bronze_reviews_demoji = df_bronze_reviews_cast \
     .withColumn("reviewDemoji", demojize_udf(f.col("review")))
 
+# extensive cleaning of the review text to remove bbcode, links, hashtags, emojis, and other non-standard characters, while also trying to catch common censorship patterns (i.e. :heart_suit: in a row)
 df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
     .withColumn("reviewText",
         f.trim(
@@ -261,6 +406,7 @@ df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
         )
     )  
 
+# enhance the review data with additional features
 df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
     .withColumn("reviewLength", f.length(f.col("reviewText"))) \
     .withColumn("wordCount", f.size(f.split(f.col("reviewText"), " "))) \
@@ -279,6 +425,9 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
     .withColumn("sentimentAnalysis", 
         f.when(f.col("isUsableForVader"), sentiment_compound(f.col("reviewText"))) \
             .otherwise(None)
+     ) \
+     .withColumn("salt",        # salting because i join with external_games and some eIds have way more reviews than others
+        (f.rand()*10).cast("int")
      ) \
     .select(
         "eId"
@@ -309,12 +458,19 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
         , "sentimentAnalysis.neg"
     )
 
-columns_to_hash = [c for c in df_bronze_reviews_enhanced.columns if c not in ['eId', 'steamid'] ]
+# join with external games to get the gameKey, and create a hash of all the review attributes to make it easier to identify changes in the review content in the future (since steam doesn't provide a unique id for each review and reviews can be updated)
+df_external_games = spark.read.format("delta").table(external_games_path).select("eId", "gameKey").filter(f.col("egSourceName") == 'Steam')
 
-df_bronze_reviews_final = df_bronze_reviews_enhanced \
+df_bronze_lookup = df_bronze_reviews_enhanced.alias("reviews") \
+    .join(f.broadcast(df_external_games).alias("eg"), "eId", "inner")
+
+columns_to_hash = [c for c in df_bronze_lookup.columns if c not in ['eId', 'steamid'] ]
+
+df_bronze_reviews_final = df_bronze_lookup \
     .withColumn("hash", f.sha2(f.concat_ws(",", *[f.col(c) for c in columns_to_hash]), 256)) \
     .selectExpr(
         "sha2(cast(concat_ws('|', eId, steamid) as string), 256)                        as reviewKey"
+        , "gameKey                                                                      as gameKey"
         , "eId                                                                          as eId"
         , "recommendationid                                                             as recommendationId"
         , "steamid                                                                      as authorId"
@@ -377,7 +533,8 @@ target_table.alias("t").merge(
 ).whenMatchedUpdate(
     condition="t.hash != s.hash",
     set={
-        "eId":                      "s.eId"
+        "gameKey":                  "s.gameKey"
+        , "eId":                    "s.eId"
         , "recommendationId":       "s.recommendationId"
         , "authorId":               "s.authorId"
         , "language":               "s.language"
@@ -409,6 +566,7 @@ target_table.alias("t").merge(
 ).whenNotMatchedInsert(
     values={
         "reviewKey":                "s.reviewKey"
+        , "gameKey":                "s.gameKey"
         , "eId":                    "s.eId"
         , "recommendationId":       "s.recommendationId"
         , "authorId":               "s.authorId"
@@ -447,8 +605,8 @@ version_after = audit_row[0][0]
 if version_before == version_after:
     print("Merge executed. No rows affected")
 else:
-    audit_dict = audit_row[0].operationMetrics
-    print(f"Merge executed. Statistics: {audit_dict}")
+    current_source_version = source_table.history(1).collect()[0][0]
+    insert_version(audit_row=audit_row, latest_source_version=current_source_version)
 
 # MARKDOWN ********************
 

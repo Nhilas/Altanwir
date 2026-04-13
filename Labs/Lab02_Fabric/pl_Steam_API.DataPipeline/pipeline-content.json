@@ -80,7 +80,7 @@
       },
       "game_limit": {
         "type": "int",
-        "defaultValue": 30
+        "defaultValue": 120
       },
       "batch_limit": {
         "type": "int",

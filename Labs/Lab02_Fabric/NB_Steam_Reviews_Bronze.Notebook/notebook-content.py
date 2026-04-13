@@ -32,6 +32,7 @@
 import notebookutils
 import struct
 import pyodbc
+import json
 
 from delta.tables import DeltaTable
 from pyspark.sql import functions as f
@@ -53,6 +54,7 @@ from pyspark.sql.types import StructType, StructField, StringType, LongType, Int
 
 environment = "dev"
 load_type = 'initial'
+run_id = 'devAudit2'
 
 # METADATA ********************
 
@@ -72,6 +74,9 @@ lakehouse_info = notebookutils.lakehouse.get(lakehouse_name)
 audit_schema = "dev" if environment == "dev" else "steam"
     
 abfs_root = f"{lakehouse_info['properties']['abfsPath']}"
+
+target_path = f"{lakehouse_name}.bronze.steamreviews"
+target_table = DeltaTable.forName(spark, target_path)
 
 # METADATA ********************
 
@@ -100,6 +105,7 @@ audit_database = 'IGDBAudit'
 
 print(f"Bronze Steam Reviews ELT Initiated with load_type = '{load_type}'")
 print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {audit_database}.{audit_schema}")
+print(f"Loading from Data Lake ( {abfs_root} ) into {target_path}")
 
 # METADATA ********************
 
@@ -182,6 +188,65 @@ def update_audit (executions_list=[]):
 
 # MARKDOWN ********************
 
+# ### insert_version
+
+# CELL ********************
+
+def insert_version(audit_row):
+    insert_query = f"""
+        insert into {audit_schema}.versionControl (
+            table_name
+            , run_id
+            , change_type
+            , commit_version
+            , commit_timestamp
+            , rows_inserted
+            , rows_updated
+            , latest_source_version
+            , audit_notes
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    full_audit_row = audit_row[0].asDict()
+    audit_notes = json.dumps(full_audit_row, default=str)
+
+    insert_parameters = [
+        target_path
+        , run_id
+        , audit_row[0]['operation']
+        , audit_row[0]['version']
+        , audit_row[0]['timestamp']
+        , int(audit_row[0]['operationMetrics']['numTargetRowsInserted'])
+        , int(audit_row[0]['operationMetrics']['numTargetRowsUpdated'])
+        , None
+        , audit_notes
+    ]
+
+    conn = connect_audit_wh()
+    db_cursor = conn.cursor()
+
+    try:
+        db_cursor.execute(insert_query, insert_parameters)
+        conn.commit()
+    except Exception as e:
+        print(f"Failed to insert version: {e}")
+        conn.rollback()
+    else:
+        print(f"Successfully logged audit for {target_path} in {audit_schema}.versionControl with the audit_row = {audit_notes}")
+    finally:
+        db_cursor.close()
+        conn.close()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
 # # Main
 
 # CELL ********************
@@ -238,9 +303,6 @@ else:
         df_joined = df_reviews.join(f.broadcast(df_interm), "execution_id", "inner" )
 
         # merge
-        target_path = f"{lakehouse_name}.bronze.steamreviews"
-        target_table = DeltaTable.forName(spark, target_path)
-
         version_before = target_table.history(1).collect()[0][0]
         print(f"Merge target: {target_path}. Executing merge...")
 
@@ -262,14 +324,13 @@ else:
             }   
         ).execute()
 
-        version_after = target_table.history(1).collect()[0][0]
+        audit_row = target_table.history(1).collect()
+        version_after = audit_row[0][0]
 
         if version_before == version_after:
             print("Merge executed. No rows affected")
         else:
-            audit_row = target_table.history(1).collect()
-            audit_dict = audit_row[0].operationMetrics
-            print(f"Merge executed. Statistics: {audit_dict}")
+            insert_version(audit_row=audit_row)
     except Exception as e:
         print(f"Catastropic error: {e}")
     else:

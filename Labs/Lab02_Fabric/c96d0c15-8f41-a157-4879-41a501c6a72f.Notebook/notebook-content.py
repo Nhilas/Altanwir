@@ -63,7 +63,7 @@ from pyspark.sql.window import Window
 
 environment = "dev"
 load_type = "incremental"
-run_id = "silver_reviews_dev_3"
+run_id = "devIncrementalAndAudit1"
 
 # METADATA ********************
 
@@ -146,6 +146,13 @@ sia_schema = StructType([
 
 deduplicateBy = Window.partitionBy("app_id", "steamid").orderBy(f.col("timestamp_updated").desc())
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 print(f"Silver Steam Reviews ELT Initiated with load_type = '{load_type}', for run_id = '{run_id}'")
@@ -173,6 +180,13 @@ print(f"Loading from {source_path} into {target_path}")
 def demojize_udf(s: pd.Series) -> pd.Series:
     return s.apply(emoji.demojize)
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # ## sentiment_compound
@@ -186,6 +200,13 @@ def sentiment_compound(r: pd.Series) -> pd.DataFrame:
     analysis_series = r.apply(lambda review: sia.polarity_scores(review) if review else {"pos": None, "compound": None, "neu": None, "neg": None})
 
     return pd.DataFrame(analysis_series.tolist())[["pos", "compound", "neu", "neg"]]
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -205,6 +226,13 @@ def connect_audit_wh():
     conn = pyodbc.connect(conn_str, attrs_before={1256: token_struct})
 
     return conn
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -236,6 +264,13 @@ def check_version(table_name):
     finally:
         db_cursor.close()
         conn.close()    
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -289,6 +324,13 @@ def insert_version(audit_row, latest_source_version):
         db_cursor.close()
         conn.close()
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # # Main
@@ -319,6 +361,13 @@ elif load_type == 'incremental':
 else:
     print(f"Invalid load_type: {load_type}! Shutting down")
     notebookutils.notebook.exit("Wrong load_type")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -521,6 +570,13 @@ if load_type == "full":
 
     print("Truncate completed")
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 version_before = target_table.history(1).collect()[0][0]
@@ -608,6 +664,13 @@ else:
     current_source_version = source_table.history(1).collect()[0][0]
     insert_version(audit_row=audit_row, latest_source_version=current_source_version)
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # ## Optimize
@@ -621,3 +684,10 @@ if version_before != version_after:
     spark.sql(optimize_query)
 
     print(f"OPTIMIZE Completed!")    
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }

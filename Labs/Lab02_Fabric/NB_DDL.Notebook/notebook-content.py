@@ -161,6 +161,65 @@ spark.sql(ddl_query)
 # META   "language_group": "synapse_pyspark"
 # META }
 
+# CELL ********************
+
+# Gold Review Stats
+ddl_query = f"""
+create table if not exists {lakehouse_name}.gold.steamReviewStats (
+    reviewKey STRING
+    , gameKey STRING
+    , reviewCleaned STRING
+
+    , votedUp BOOLEAN
+    , votesUp INT
+    , votesFunny INT
+    , communityWeight FLOAT
+
+    , reviewLength INT
+    , wordCount INT
+    , lengthWeight FLOAT
+
+    , playtimeAtReview INT
+    , playtimePercentile INT
+    , playtimeBucket STRING
+
+    , refunded BOOLEAN
+    , writtenDuringEarlyAccess BOOLEAN
+    , containsBugReport BOOLEAN
+
+    , sentimentCompound FLOAT
+    , sentimentLabel STRING
+    , emotionalIntensity FLOAT
+    , emotionalWeight FLOAT
+
+    , voteSignal INT
+    , sentimentSignal INT
+    , reviewInfluenceScore FLOAT
+    , weightedVoteScore FLOAT
+
+    , insert_run_id STRING
+    , update_run_id STRING
+    , hash STRING
+)
+USING DELTA
+CLUSTER BY (gameKey)
+TBLPROPERTIES (
+    'delta.autoOptimize.optimizeWrite' = 'true',
+    'delta.autoOptimize.autoCompact' = 'true',
+    'delta.parquet.vorder.enabled' = 'true',
+    'delta.enableChangeDataFeed' = 'true'
+)
+"""
+
+spark.sql(ddl_query)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # ## Audit

@@ -34,6 +34,7 @@ import pyodbc
 import notebookutils
 import json
 
+from pyspark.sql import functions as f
 from delta.tables import DeltaTable
 
 # METADATA ********************
@@ -50,8 +51,18 @@ from delta.tables import DeltaTable
 # CELL ********************
 
 environment = "dev"
-load_type = "incremental"
-run_id = "devGoldSteamReviews1"
+load_type = "incremental"   # valid options: "full", "reload", "incremental", "targeted"
+run_id = "bugFix_null_playtime1"
+
+# format this as a list. only used if load_type = 'targeted'. only accepts gameKeys
+targeted_reload = [ 'fee1882ab7f5f816b65f0cd5b277fb74c058352c5a95c6e302f07bc423aa717f', '9b82015126416c80cc13505a3f254f33336e37432509bab854553afd2b51f4fb', 'f6121e9cec01d2dc9c3f8762f2ed088c6e4b3cdf32b26a970a73e3eae5dd3351']
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -70,7 +81,14 @@ source_path = f"{lakehouse_name}.silver.steamreviews"
 source_table = DeltaTable.forName(spark, source_path)
 
 target_path = f"{lakehouse_name}.gold.steamreviewstats"
-# target_table = DeltaTable.forName(spark, target_path)
+target_table = DeltaTable.forName(spark, target_path)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -81,11 +99,25 @@ target_path = f"{lakehouse_name}.gold.steamreviewstats"
 audit_server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
 audit_database = 'IGDBAudit'
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 print(f"Gold Steam Reviews ELT Initiated with load_type = '{load_type}', for run_id = '{run_id}'")
 print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {audit_database}.{audit_schema}")
 print(f"Loading from {source_path} into {target_path}")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -109,6 +141,13 @@ def connect_audit_wh():
     conn = pyodbc.connect(conn_str, attrs_before={1256: token_struct})
 
     return conn
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -140,6 +179,13 @@ def check_version(table_name):
     finally:
         db_cursor.close()
         conn.close()    
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
@@ -193,13 +239,50 @@ def insert_version(audit_row, latest_source_version):
         db_cursor.close()
         conn.close()
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
 # # Main
 
 # CELL ********************
 
-test_sample = [ 'fee1882ab7f5f816b65f0cd5b277fb74c058352c5a95c6e302f07bc423aa717f', '9b82015126416c80cc13505a3f254f33336e37432509bab854553afd2b51f4fb', 'f6121e9cec01d2dc9c3f8762f2ed088c6e4b3cdf32b26a970a73e3eae5dd3351']
+if load_type in ['full', 'reload']:
+    from_clause = source_path
+elif load_type == 'incremental':
+    latest_source_version = check_version(table_name=target_path)
+    current_source_version = source_table.history(1).select("version").collect()[0][0]
+
+    if latest_source_version is None:
+        print(f"No previous source version found for {target_path} in audit. Defaulting to full load_type.")
+
+        from_clause = source_path
+    elif current_source_version == latest_source_version:
+        print(f"No new version found for {source_path}. Latest version in audit: {latest_source_version}, current version in source: {current_source_version}. Shutting down.")
+        notebookutils.notebook.exit("No new version to process")
+    else:
+        from_clause = f"{source_path}\n\twhere gameKey in ( select distinct gameKey from table_changes('{source_path}', {latest_source_version+1}) )"
+elif load_type == 'targeted' and targeted_reload:
+    sep = "', '"
+    gameKey_predicate = f"'{sep.join(targeted_reload)}'"
+    from_clause = f"{source_path}\n\twhere gameKey in ({gameKey_predicate})"
+else:
+    print(f"Invalid load_type: {load_type}! Shutting down")
+    notebookutils.notebook.exit("Wrong load_type")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
 
 source_query = f"""
 with raw_silver as (
@@ -219,12 +302,8 @@ with raw_silver as (
         , containsBugReport
         , emotionalIntensity
         , isUsableForVader
-        , sentimentPositive
         , sentimentCompound
-        , sentimentNeutral
-        , sentimentNegative
-    from {source_path}
-    where gameKey in ('{"', '".join([game for game in test_sample])}')
+    from {from_clause}
 )
 
 , game_stats as (
@@ -233,8 +312,6 @@ with raw_silver as (
         , max(votesUp) as max_votesUp
         , max(reviewLength) as max_reviewLength
     from raw_silver
-    where
-        isUsableForVader
     group by gameKey
 )
 
@@ -244,12 +321,8 @@ with raw_silver as (
         , gs.max_votesUp
         , gs.max_reviewLength
         , round(percent_rank() over (partition by r.gameKey order by playtimeAtReview)*100) as playtimePercentile
-        , log(votesUp + 1) / log(max_votesUp + 1) as communityWeight
-        , case
-            when isUsableForVader then log(reviewLength + 1) / log(max_reviewLength + 1) 
-            else NULL
-        end as lengthWeight
-        , emotionalIntensity * 0.3 as emotionalWeight
+        , coalesce(log(votesUp + 1) / nullif(log(max_votesUp + 1),0),0) as communityWeight
+        , coalesce(log(reviewLength + 1) / nullif(log(max_reviewLength + 1),0),0) as lengthWeight
     from raw_silver as r
     left join game_stats as gs
         on r.gameKey = gs.gameKey
@@ -263,16 +336,22 @@ with raw_silver as (
             when playtimePercentile between 34 and 66 then 'Regular'
             when playtimePercentile <= 33 then 'Casual'
         end as playtimeBucket
-        , case
-            when sentimentCompound >= 0.05 then 'Positive'
-            when sentimentCompound <= -0.05 then 'Negative'
-            else 'Neutral'
+        , case 
+            when sentimentCompound is not NULL then
+                case
+                    when sentimentCompound >= 0.05 then 'Positive'
+                    when sentimentCompound <= -0.05 then 'Negative'
+                    else 'Neutral'
+                end
+            else NULL
         end as sentimentLabel
-        , case when votedUp then 1 else -1 end as voteSignal
+        , case when votedUp = True then 1 else -1 end as voteSignal
         , case
             when isUsableForVader and sentimentCompound <> 0 then sign(sentimentCompound)
-            else case when votedUp then 1 else -1 end
+            when isUsableForVader and sentimentCompound = 0 then
+                case when votedUp = True then 1 else -1 end
         end as sentimentSignal
+        , emotionalIntensity * 0.5 as emotionalWeight
         , case
             when isUsableForVader = True
                 then ( playtimePercentile/100 + abs(sentimentCompound) + communityWeight + lengthWeight + emotionalWeight ) / 4.5
@@ -281,36 +360,178 @@ with raw_silver as (
     from aux_silver
 )
 
-select *
+select
+    reviewKey
+    , gameKey
+    , reviewCleaned
+
+    , votedUp
+    , votesUp
+    , votesFunny
+    , communityWeight
+
+    , reviewLength
+    , wordCount    
+    , lengthWeight
+
+    , playtimeAtReview
+    , playtimePercentile
+    , playtimeBucket
+
+    , refunded
+    , writtenDuringEarlyAccess
+    , containsBugReport
+    
+    , sentimentCompound
+    , sentimentLabel
+    , emotionalIntensity
+    , emotionalWeight
+
+    , voteSignal
+    , sentimentSignal
+    , reviewInfluenceScore
+    , weightedVoteScore
 from enhanced_silver
 """
 
-spark.sql(source_query).createOrReplaceTempView("test")
+df_silver_reviews_processed = spark.sql(source_query)
 
-# CELL ********************
+columns_to_hash = [c for c in df_silver_reviews_processed.columns if c not in ['reviewKey'] ]
 
-# MAGIC %%sql
-# MAGIC 
-# MAGIC select
-# MAGIC     case
-# MAGIC         when votedUp = True
-# MAGIC             then "yes"
-# MAGIC         when votedUp = False
-# MAGIC             then "no"
-# MAGIC         when votedUp is NULL
-# MAGIC             then "null"
-# MAGIC         else "what the fuck" end as sparkCantSeeNullsLol
-# MAGIC     , *
-# MAGIC from test
-# MAGIC where reviewKey = '856c577b70a3dfb134a205bc0883306a0843282f129088d986e36894b5154cbd'
+df_silver_reviews = df_silver_reviews_processed \
+    .withColumn("hash", f.sha2(f.concat_ws("|", *[f.col(c) for c in columns_to_hash]), 256))
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # MARKDOWN ********************
 
-# # Debug
+# ## Merge
 
 # CELL ********************
 
-query = f"select * from table_changes('{source_path}', 0) limit 10"
+if load_type == "full":
+    print(f"Load type is '{load_type}', truncating table {target_path}...")    
 
-spark.sql(query).show()
+    truncate_query = f"truncate table {target_path}"
+    spark.sql(truncate_query)
+
+    print("Truncate completed")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+version_before = target_table.history(1).collect()[0][0]
+
+print(f"Merge target: {target_path}. Executing merge...")
+
+target_table.alias("t").merge(
+    df_silver_reviews.alias("s"),
+    "t.reviewKey = s.reviewKey"
+).whenMatchedUpdate(
+    condition="t.hash != s.hash",
+    set={
+        "t.gameKey":                   "s.gameKey",
+        "t.reviewCleaned":             "s.reviewCleaned",
+        "t.votedUp":                   "s.votedUp",
+        "t.votesUp":                   "s.votesUp",
+        "t.votesFunny":                "s.votesFunny",
+        "t.communityWeight":           "s.communityWeight",
+        "t.reviewLength":              "s.reviewLength",
+        "t.wordCount":                 "s.wordCount",
+        "t.lengthWeight":              "s.lengthWeight",
+        "t.playtimeAtReview":          "s.playtimeAtReview",
+        "t.playtimePercentile":        "s.playtimePercentile",
+        "t.playtimeBucket":            "s.playtimeBucket",
+        "t.refunded":                  "s.refunded",
+        "t.writtenDuringEarlyAccess":  "s.writtenDuringEarlyAccess",
+        "t.containsBugReport":         "s.containsBugReport",
+        "t.sentimentCompound":         "s.sentimentCompound",
+        "t.sentimentLabel":            "s.sentimentLabel",
+        "t.emotionalIntensity":        "s.emotionalIntensity",
+        "t.emotionalWeight":           "s.emotionalWeight",
+        "t.voteSignal":                "s.voteSignal",
+        "t.sentimentSignal":           "s.sentimentSignal",
+        "t.reviewInfluenceScore":      "s.reviewInfluenceScore",
+        "t.weightedVoteScore":         "s.weightedVoteScore",
+        "t.update_run_id":             f"'{run_id}'",
+        "t.hash":                      "s.hash",
+    }
+).whenNotMatchedInsert(
+    values={
+        "reviewKey":                "s.reviewKey",
+        "gameKey":                  "s.gameKey",
+        "reviewCleaned":            "s.reviewCleaned",
+        "votedUp":                  "s.votedUp",
+        "votesUp":                  "s.votesUp",
+        "votesFunny":               "s.votesFunny",
+        "communityWeight":          "s.communityWeight",
+        "reviewLength":             "s.reviewLength",
+        "wordCount":                "s.wordCount",
+        "lengthWeight":             "s.lengthWeight",
+        "playtimeAtReview":         "s.playtimeAtReview",
+        "playtimePercentile":       "s.playtimePercentile",
+        "playtimeBucket":           "s.playtimeBucket",
+        "refunded":                 "s.refunded",
+        "writtenDuringEarlyAccess": "s.writtenDuringEarlyAccess",
+        "containsBugReport":        "s.containsBugReport",
+        "sentimentCompound":        "s.sentimentCompound",
+        "sentimentLabel":           "s.sentimentLabel",
+        "emotionalIntensity":       "s.emotionalIntensity",
+        "emotionalWeight":          "s.emotionalWeight",
+        "voteSignal":               "s.voteSignal",
+        "sentimentSignal":          "s.sentimentSignal",
+        "reviewInfluenceScore":     "s.reviewInfluenceScore",
+        "weightedVoteScore":        "s.weightedVoteScore",
+        "insert_run_id":            f"'{run_id}'",
+        "update_run_id":            "null",
+        "hash":                     "s.hash",
+    }
+).execute()
+
+audit_row = target_table.history(1).collect()
+version_after = audit_row[0][0]
+
+if version_before == version_after:
+    print("Merge executed. No rows affected")
+else:
+    current_source_version = source_table.history(1).collect()[0][0]
+    insert_version(audit_row=audit_row, latest_source_version=current_source_version)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Optimize
+
+# CELL ********************
+
+if version_before != version_after:
+    print(f"OPTIMIZE {target_path} to cluster new additions...")
+
+    optimize_query = f"OPTIMIZE {target_path}"
+    spark.sql(optimize_query)
+
+    print(f"OPTIMIZE Completed!")    
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }

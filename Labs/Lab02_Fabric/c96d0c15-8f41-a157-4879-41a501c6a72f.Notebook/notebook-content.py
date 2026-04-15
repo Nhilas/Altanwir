@@ -40,13 +40,12 @@ import emoji
 import pandas as pd
 import notebookutils
 
-from delta.tables import DeltaTable
-
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from pyspark.sql import functions as f
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, LongType, FloatType, BooleanType, TimestampType
 from pyspark.sql.window import Window
+from delta.tables import DeltaTable
 
 # METADATA ********************
 
@@ -62,8 +61,8 @@ from pyspark.sql.window import Window
 # CELL ********************
 
 environment = "dev"
-load_type = "incremental"
-run_id = "devIncrementalAndAudit1"
+load_type = "reload"   # valid options: "full", "reload", "incremental", "targeted"
+run_id = "bugFix_null_playtime1"
 
 # METADATA ********************
 
@@ -338,7 +337,7 @@ def insert_version(audit_row, latest_source_version):
 # CELL ********************
 
 # Load data from Bronze based on load_type
-if load_type == 'full':
+if load_type in ['full', 'reload']:
     df_bronze_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
 elif load_type == 'incremental':
     latest_source_version = check_version(table_name=target_path)
@@ -408,8 +407,8 @@ df_bronze_reviews_filtered = df_bronze_reviews \
 df_bronze_reviews_cast = df_bronze_reviews_filtered \
     .withColumn("eId", f.col("app_id").cast(StringType())) \
     .withColumn("weightedVoteScore", f.col("weighted_vote_score").cast(FloatType())) \
-    .withColumn("playtimeForever", f.col("playtime_forever").cast(IntegerType())) \
-    .withColumn("playtimeAtReview", f.col("playtime_at_review").cast(IntegerType())) \
+    .withColumn("playtimeForever", f.coalesce(f.col("playtime_forever").cast(IntegerType()), f.lit(0))) \
+    .withColumn("playtimeAtReview", f.coalesce(f.col("playtime_at_review").cast(IntegerType()), f.lit(0))) \
     .withColumn("timestampCreated", f.from_unixtime(f.col("timestamp_created")).cast(TimestampType())) \
     .withColumn("timestampUpdated", f.from_unixtime(f.col("timestamp_updated")).cast(TimestampType())) \
     .withColumn("votesUp",

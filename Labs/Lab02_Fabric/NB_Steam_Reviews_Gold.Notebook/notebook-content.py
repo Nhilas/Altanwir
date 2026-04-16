@@ -51,8 +51,8 @@ from delta.tables import DeltaTable
 # CELL ********************
 
 environment = "dev"
-load_type = "incremental"   # valid options: "full", "reload", "incremental", "targeted"
-run_id = "bugFix_null_playtime1"
+load_type = "reload"   # valid options: "full", "reload", "incremental", "targeted"
+run_id = "renameTest"
 
 # format this as a list. only used if load_type = 'targeted'. only accepts gameKeys
 targeted_reload = [ 'fee1882ab7f5f816b65f0cd5b277fb74c058352c5a95c6e302f07bc423aa717f', '9b82015126416c80cc13505a3f254f33336e37432509bab854553afd2b51f4fb', 'f6121e9cec01d2dc9c3f8762f2ed088c6e4b3cdf32b26a970a73e3eae5dd3351']
@@ -80,7 +80,7 @@ source_abfs = f"{abfs_root}/Tables/silver/steamreviews"
 source_path = f"{lakehouse_name}.silver.steamreviews"
 source_table = DeltaTable.forName(spark, source_path)
 
-target_path = f"{lakehouse_name}.gold.steamreviewstats"
+target_path = f"{lakehouse_name}.gold.factReviews"
 target_table = DeltaTable.forName(spark, target_path)
 
 # METADATA ********************

@@ -165,7 +165,7 @@ spark.sql(ddl_query)
 
 # Gold Review Stats
 ddl_query = f"""
-create table if not exists {lakehouse_name}.gold.steamReviewStats (
+create table if not exists {lakehouse_name}.gold.factReviews (
     reviewKey STRING
     , gameKey STRING
     , reviewCleaned STRING

@@ -75,7 +75,15 @@ print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {au
 
 # MARKDOWN ********************
 
-# ## Steam Reviews
+# # Delta DDL
+
+# MARKDOWN ********************
+
+# ## Tables
+
+# MARKDOWN ********************
+
+# ### Steam Reviews
 
 # CELL ********************
 
@@ -161,9 +169,13 @@ spark.sql(ddl_query)
 # META   "language_group": "synapse_pyspark"
 # META }
 
+# MARKDOWN ********************
+
+# ### Gold
+
 # CELL ********************
 
-# Gold Review Stats
+# Gold Fact Reviews
 ddl_query = f"""
 create table if not exists {lakehouse_name}.gold.factReviews (
     reviewKey STRING
@@ -220,9 +232,77 @@ spark.sql(ddl_query)
 # META   "language_group": "synapse_pyspark"
 # META }
 
+# CELL ********************
+
+# Gold Fact Game Scores
+ddl_query = f"""
+create table if not exists {lakehouse_name}.gold.factGameScores (
+    gameKey STRING
+	, gameName STRING
+
+	, aggregatedRating DOUBLE
+	, percentileRating DOUBLE
+	, aggregatedRatingSourceCount BIGINT
+	, percentileSourceCount DOUBLE
+
+	, totalReviews BIGINT
+	, sentimentReviews BIGINT
+
+	, avgPlaytimeAtReview DOUBLE
+	, avgWordCount DOUBLE
+	, avgEmotionalIntensity DOUBLE
+
+	, pctPositiveSentiment DOUBLE
+	, pctNeutralSentiment DOUBLE
+	, pctNegativeSentiment DOUBLE
+
+	, sentimentVoteAlignment DOUBLE
+	, weightedSentiment DOUBLE
+	, pctWeightedSentiment DOUBLE
+	, weightedSentimentRating DOUBLE
+	, percentileWeightedSentiment DOUBLE
+
+	, weightedVote DOUBLE
+	, pctWeightedVote DOUBLE
+	, weightedVoteRating DOUBLE
+	, percentileWeightedVote DOUBLE
+
+	, pctVotedUp DOUBLE
+	, voteRating DOUBLE
+
+	, pctEarlyAccess DOUBLE
+	, pctBugReports DOUBLE
+	, pctRefunded DOUBLE
+
+    , insert_run_id STRING
+    , update_run_id STRING
+    , hash STRING
+)
+USING DELTA
+TBLPROPERTIES (
+    'delta.autoOptimize.optimizeWrite' = 'true',
+    'delta.autoOptimize.autoCompact' = 'true',
+    'delta.parquet.vorder.enabled' = 'true',
+    'delta.enableChangeDataFeed' = 'true'
+)
+"""
+
+spark.sql(ddl_query)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # MARKDOWN ********************
 
-# ## Audit
+# # Warehouse DDL
+
+# MARKDOWN ********************
+
+# ## Audit Tables
 
 # CELL ********************
 
@@ -265,7 +345,6 @@ try:
     conn.commit()
 except Exception as e:
     print(f"Failed to create table: {e}")
-    conn.rollback()
 else:
     print(f"Successfully created table {audit_database}.{audit_schema}.loadOrchestratorReviews")
 finally:
@@ -307,7 +386,6 @@ try:
     conn.commit()
 except Exception as e:
     print(f"Failed to create table: {e}")
-    conn.rollback()
 else:
     print(f"Successfully created table {audit_database}.{audit_schema}.loadControlReviews")
 finally:
@@ -345,9 +423,159 @@ try:
     conn.commit()
 except Exception as e:
     print(f"Failed to create table: {e}")
-    conn.rollback()
 else:
     print(f"Successfully created table {audit_database}.{audit_schema}.versionControl")
+finally:
+    db_cursor.close()
+    conn.close()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# ## Audit Views
+
+# CELL ********************
+
+ddl_query = f"""
+create view {audit_schema}.vw_loadReviews as
+with ordered_executions as (
+        select
+            *
+            , ROW_NUMBER() over ( PARTITION by app_id, execution_type order by execution_start_time desc ) as rn
+        from steam.loadControlReviews 
+    )
+
+, successful_executions as (
+        select
+            app_id
+            , execution_type
+            , execution_id
+            , first_retrieved_timestamp
+            , last_retrieved_cursor
+            , ROW_NUMBER() over ( PARTITION by app_id, execution_type order by execution_start_time desc ) as rn
+        from steam.loadControlReviews
+        where execution_status = 'success'
+    )
+
+select
+    o.app_id
+    , o.load_type
+    , o.priority
+    , case 
+        when o.load_status = 'retry' then -1
+        when coalesce(e.execution_id, s.execution_id) is not null and o.load_status <> 'completed' then 0
+        when o.load_status = 'completed' then 99
+        when o.priority = 'High' then 1
+        when o.priority = 'Medium' then 2
+        when o.priority = 'Low' then 3
+    end as priority_order
+    , o.load_status
+    , e.run_id
+    , e.execution_id
+    , e.execution_start_time
+    , e.execution_end_time
+    , e.execution_duration
+    , e.execution_status
+    , e.retrieved_reviews
+    , cast(dateadd(second, e.first_retrieved_timestamp, '1970-01-01') as datetime2) as first_review_on
+    , cast(dateadd(second, e.last_retrieved_timestamp, '1970-01-01') as datetime2) as last_review_on
+    , e.output_path
+    , s.first_retrieved_timestamp as high_water_mark
+    , case
+        when o.load_status in ('empty', 'failed', 'retry') and (e.last_retrieved_cursor is null or e.last_retrieved_cursor = '*' )
+            then s.last_retrieved_cursor
+        when o.load_status in ('completed', 'pending')
+            then '*'
+        else coalesce(e.last_retrieved_cursor, '*')
+    end as last_retrieved_cursor
+from steam.loadOrchestratorReviews as o
+left join ordered_executions as e
+    on o.app_id = e.app_id
+    and o.load_type = e.execution_type
+    and e.rn = 1
+left join successful_executions as s
+    on o.app_id = s.app_id
+    and o.load_type = s.execution_type
+    and s.rn = 1
+"""
+
+conn = connect_audit_wh()
+db_cursor = conn.cursor()
+
+try:
+    db_cursor.execute(ddl_query)
+    conn.commit()
+except Exception as e:
+    print(f"Failed to create table: {e}")
+else:
+    print(f"Successfully created table {audit_database}.{audit_schema}.loadReviews")
+finally:
+    db_cursor.close()
+    conn.close()
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+ddl_query = f"""
+create view {audit_schema}.vw_loadReviewStats as
+WITH cteExecutions AS (
+    SELECT
+        run_id
+        , execution_start_time
+        , execution_end_time
+        , retrieved_reviews
+        , app_id
+        , execution_status
+        , datediff(minute, execution_start_time, execution_end_time) as exec_duration
+        , min(datediff(minute, execution_start_time, execution_end_time)) over(partition by run_id) as min_duration
+        , percentile_cont(0.25) within group (order by datediff(minute, execution_start_time, execution_end_time)) over(partition by run_id) as [25th_duration]
+        , percentile_cont(0.75) within group (order by datediff(minute, execution_start_time, execution_end_time)) over(partition by run_id) as [75th_duration]
+        , max(datediff(minute, execution_start_time, execution_end_time)) over(partition by run_id) as max_duration
+    FROM dev.loadControlReviews
+)
+SELECT
+    run_id
+    , min(execution_start_time) as run_start_time
+    , max(execution_end_time) as run_end_time        
+    , datediff(minute, min(execution_start_time), max(execution_end_time)) as run_duration
+    
+    , max(min_duration) as min_duration
+    , max([25th_duration]) as [25th_duration]
+    , cast(avg(cast(exec_duration as decimal(10,2))) as decimal(10,2)) as avg_duration
+    , max([75th_duration]) as [75th_duration]    
+    , max(max_duration) as max_duration
+    
+    , sum(retrieved_reviews) as retrieved_reviews
+    , count(distinct app_id) as processed_games
+    , sum(case when execution_status = 'empty' then 1 else 0 end) as empty_games
+    , sum(case when execution_status not in ( 'success', 'empty', 'in-progress' ) then 1 else 0 end) as failed_executions        
+FROM cteExecutions
+GROUP BY 
+    run_id
+"""
+
+conn = connect_audit_wh()
+db_cursor = conn.cursor()
+
+try:
+    db_cursor.execute(ddl_query)
+    conn.commit()
+except Exception as e:
+    print(f"Failed to create table: {e}")
+else:
+    print(f"Successfully created table {audit_database}.{audit_schema}.loadReviews")
 finally:
     db_cursor.close()
     conn.close()

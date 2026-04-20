@@ -97,6 +97,7 @@ create table if not exists {lakehouse_name}.bronze.steamReviews (
     , update_execution_id STRING
 )
 USING DELTA
+CLUSTER BY (app_id)
 TBLPROPERTIES (
     'delta.autoOptimize.optimizeWrite' = 'true',
     'delta.autoOptimize.autoCompact' = 'true',
@@ -129,6 +130,9 @@ create table if not exists {lakehouse_name}.silver.steamReviews (
     , votedUp BOOLEAN
     , votesUp INT
     , votesFunny INT
+    , commentCount INT
+    , reactionTypeCount INT
+    , reactionCount INT
     , weightedVoteScore FLOAT
     , playtimeForever INT
     , playtimeAtReview INT
@@ -138,7 +142,8 @@ create table if not exists {lakehouse_name}.silver.steamReviews (
     , writtenDuringEarlyAccess BOOLEAN
     , reviewLength INT
     , wordCount INT
-    , vaderRatio FLOAT
+    , uniqueWordRatio FLOAT
+    , asciiRatio FLOAT
     , isUsableForVader BOOLEAN
     , containsBugReport BOOLEAN
     , emotionalIntensity FLOAT

@@ -43,7 +43,7 @@ import notebookutils
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from pyspark.sql import functions as f
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, LongType, FloatType, BooleanType, TimestampType
+from pyspark.sql.types import ArrayType, StructType, StructField, StringType, IntegerType, LongType, FloatType, BooleanType, TimestampType
 from pyspark.sql.window import Window
 from delta.tables import DeltaTable
 
@@ -62,7 +62,9 @@ from delta.tables import DeltaTable
 
 environment = "dev"
 load_type = "reload"   # valid options: "full", "reload", "incremental", "targeted"
-run_id = "bugFix_null_playtime1"
+run_id = "dev_comments_and_reactions_03"
+
+targeted_reload = [ '271590', '620', '1966720' ]
 
 # METADATA ********************
 
@@ -129,6 +131,11 @@ raw_review_schema = StructType([
     , StructField("voted_up", BooleanType(), False )
     , StructField("votes_up", LongType(), False )
     , StructField("votes_funny", LongType(), False )
+    , StructField("comment_count", LongType(), False )
+    , StructField("reactions", ArrayType(StructType([
+        StructField("count", IntegerType(), False)
+        , StructField("reaction_type", StringType(), False)
+    ]), False ))
     , StructField("weighted_vote_score", StringType(), False )
     , StructField("timestamp_created", LongType(), False )
     , StructField("timestamp_updated", LongType(), False )
@@ -156,7 +163,7 @@ deduplicateBy = Window.partitionBy("app_id", "steamid").orderBy(f.col("timestamp
 
 print(f"Silver Steam Reviews ELT Initiated with load_type = '{load_type}', for run_id = '{run_id}'")
 print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {audit_database}.{audit_schema}")
-print(f"Loading from {source_path} into {target_path}")
+print(f"Loading from {source_path} and {external_games_path} into {target_path}")
 
 # METADATA ********************
 
@@ -357,6 +364,11 @@ elif load_type == 'incremental':
             .table(source_path) \
             .filter(f.col("_change_type").isin("insert", "update_postimage")) \
             .select("app_id", "review_json")
+elif load_type == 'targeted' and targeted_reload:
+    targeted_app_ids = [int(app_id) for app_id in targeted_reload]
+    df_bronze_raw = spark.read.format("delta").load(source_abfs) \
+        .filter(f.col("app_id").isin(targeted_app_ids)) \
+        .select("app_id", "review_json")
 else:
     print(f"Invalid load_type: {load_type}! Shutting down")
     notebookutils.notebook.exit("Wrong load_type")
@@ -382,6 +394,8 @@ df_bronze_reviews = df_bronze_raw \
         , f.col("parsed_review.voted_up")
         , f.col("parsed_review.votes_up")
         , f.col("parsed_review.votes_funny")
+        , f.col("parsed_review.comment_count")
+        , f.col("parsed_review.reactions")        
         , f.col("parsed_review.weighted_vote_score")
         , f.col("parsed_review.author.playtime_forever")
         , f.col("parsed_review.author.playtime_at_review")
@@ -416,7 +430,14 @@ df_bronze_reviews_cast = df_bronze_reviews_filtered \
     ) \
     .withColumn("votesFunny",
         f.when(f.col("votes_funny") > 2147483647, 0 ).otherwise(f.col("votes_funny").cast(IntegerType()))
-    )    
+    ) \
+    .withColumn("commentCount", f.col("comment_count").cast(IntegerType())) \
+    .withColumn("reactionTypeCount"
+        , f.coalesce(f.size(f.col("reactions")), f.lit(0)).cast(IntegerType())
+    ) \
+    .withColumn("reactionCount"
+        , f.coalesce(f.aggregate( f.col("reactions"), f.lit(0), lambda sum, x: sum + x["count"] ), f.lit(0)).cast(IntegerType())
+    )
     
 # convert emoji icons into text so vader can read them    
 df_bronze_reviews_demoji = df_bronze_reviews_cast \
@@ -432,39 +453,49 @@ df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
                         f.regexp_replace(
                             f.regexp_replace(
                                 f.regexp_replace(
-                                    f.col("reviewDemoji") # bbcode removal -> remove any [ ] pair with anything inside i.e. [b] [/b]
-                                    , r"\[.*?\]"
+                                    f.col("reviewDemoji") # bbcode, non 0-127 ascii removal  -> remove any [ ] pair with anything inside i.e. [b] [/b], and anything not nailed to the floor (typical characters are safe: a-z, 0-9, punctuation etc.)
+                                    , r"\[.*?\]|[^\x00-\x7F]"
                                     ,''
                                 )
-                                , r"[^\w!\?\s]{3,}|#|https?://\S+"  # ascii, hashtag, link removal ->  remove any non-alphanumeric non-! character that repeats at least 3 times in sequence, remove any #, remove anything that starts with https:// followed by any repeating non-whitespace character
+                                , r"(?:[^A-Za-z0-9\s!?]\s*+){3,}+|#|https?://\S+"  # ascii, hashtag, link ->  remove any combination of 3 or more non-alphanumeric non-!? characters, remove any #, remove anything that starts with https:// followed by any repeating non-whitespace character
                                 , ''
                             )
                             , r"(:heart_suit:){7,}"     # replace a string of 7+ x :heart_suit: (the demojized version of the character steam uses for censorship)
                             , 'fucking'
-                            )
+                        )
                         , r"(:heart_suit:){2,}"    # catchall for any other censor
                         , 'fuck'
-                        )
+                    )
                     , r':(\w+):'
-                    , r'$1'     # demoji removal of ':' -> replace any group found between two ::, of alphanumeric characters that repeat at least once, with itself (just without the :)
+                    , r'$1 '     # demoji removal of ':' -> replace any group found between two ::, of alphanumeric characters that repeat at least once, with itself (just without the :)
                 )
                 , r"_|\s+"    # replace _ OR any whitespace character that repeats at least once with a single space
                 , ' '
             )
         )
-    )  
+    )
 
 # enhance the review data with additional features
 df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
+    .withColumn("reviewLengthRaw", f.length(f.col("review"))) \
     .withColumn("reviewLength", f.length(f.col("reviewText"))) \
-    .withColumn("wordCount", f.size(f.split(f.col("reviewText"), " "))) \
-    .withColumn("vaderRatio", 
-        f.when(f.col("reviewLength") == 0, 0.0).otherwise(
-            f.length(f.regexp_replace(f.col("reviewText"), r'[^\x00-\x7F]', '')) / f.col("reviewLength"))       # ratio of non-standard characters outside of the main 126 ascii vs total length. if it's more than 41% exclude text from sentiment analysis
+    .withColumn("words", f.split(f.col("reviewText"), " ")) \
+    .withColumn("wordCount", f.size(f.col("words"))) \
+    .withColumn("uniqueWordRatio",
+        f.when(f.col("wordCount") == 0, 0.0).otherwise(
+            f.size(f.array_distinct(f.col("words"))) / f.col("wordCount"))     # unique 'words' to total 'words'
     ) \
-    .withColumn("isUsableForVader", f.col("vaderRatio") >= 0.6) \
+    .withColumn("asciiRatio",
+        f.when(f.col("reviewLengthRaw") == 0, 0.0).otherwise(
+            f.length(f.regexp_replace(f.col("review"), r'[^\x00-\x7F]', '')) / f.col("reviewLengthRaw"))             # ratio of characters outside of the 0-127 ascii range. this will catch unicode and non-english characters
+    ) \
+    .withColumn("isUsableForVader", 
+        (f.col("reviewLength") > 1)
+        & ((f.col("asciiRatio") >= 0.15) | (f.col("uniqueWordRatio") == 1))
+        & (f.col("uniqueWordRatio") >= 0.1)
+    ) \
     .withColumn("containsBugReport", 
-        f.col("reviewText").rlike(r'(?i)\b(bug|bugs|crash|error|lag|stuck)')                                    # find any case insensitive word that starts with those elements (i.e. bug, bugging, bugged)
+        f.col("reviewText").rlike(r'(?i)\b(bug|bugs|crash|error|lag|stuck|glitch)')                                    # find any case insensitive word that starts with those elements (i.e. bug, bugging, bugged)
     ) \
     .withColumn("emotionalIntensity", 
         f.when(f.col("reviewLength") == 0, 0.0).otherwise(
@@ -473,9 +504,6 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
     .withColumn("sentimentAnalysis", 
         f.when(f.col("isUsableForVader"), sentiment_compound(f.col("reviewText"))) \
             .otherwise(None)
-     ) \
-     .withColumn("salt",        # salting because i join with external_games and some eIds have way more reviews than others
-        (f.rand()*10).cast("int")
      ) \
     .select(
         "eId"
@@ -487,6 +515,9 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
         , "voted_up"
         , "votesUp"
         , "votesFunny"
+        , "commentCount"
+        , "reactionTypeCount"
+        , "reactionCount"
         , "weightedVoteScore"
         , "playtimeForever"
         , "playtimeAtReview"
@@ -496,7 +527,8 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
         , "written_during_early_access"
         , "reviewLength"
         , "wordCount"
-        , "vaderRatio"
+        , "uniqueWordRatio"
+        , "asciiRatio"
         , "isUsableForVader"
         , "containsBugReport"
         , "emotionalIntensity"
@@ -506,13 +538,14 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
         , "sentimentAnalysis.neg"
     )
 
-# join with external games to get the gameKey, and create a hash of all the review attributes to make it easier to identify changes in the review content in the future (since steam doesn't provide a unique id for each review and reviews can be updated)
+# join with external games to get the gameKey
 df_external_games = spark.read.format("delta").table(external_games_path).select("eId", "gameKey").filter(f.col("egSourceName") == 'Steam')
 
 df_bronze_lookup = df_bronze_reviews_enhanced.alias("reviews") \
     .join(f.broadcast(df_external_games).alias("eg"), "eId", "inner")
 
-columns_to_hash = [c for c in df_bronze_lookup.columns if c not in ['eId', 'steamid'] ]
+# hash excludes review raw and review cleaned for performance reasons; they can be quite large, and any change in the text is already captured by length, review metadata, ratios, sentiment and so on
+columns_to_hash = [c for c in df_bronze_lookup.columns if c not in ['eId', 'steamid', 'review', 'reviewText'] ]
 
 df_bronze_reviews_final = df_bronze_lookup \
     .withColumn("hash", f.sha2(f.concat_ws(",", *[f.col(c) for c in columns_to_hash]), 256)) \
@@ -528,6 +561,9 @@ df_bronze_reviews_final = df_bronze_lookup \
         , "voted_up                                                                     as votedUp"
         , "votesUp                                                                      as votesUp"
         , "votesFunny                                                                   as votesFunny"
+        , "commentCount                                                                 as commentCount"
+        , "reactionTypeCount                                                            as reactionTypeCount"
+        , "reactionCount                                                                as reactionCount"
         , "weightedVoteScore                                                            as weightedVoteScore"
         , "playtimeForever                                                              as playtimeForever"
         , "playtimeAtReview                                                             as playtimeAtReview"
@@ -537,7 +573,8 @@ df_bronze_reviews_final = df_bronze_lookup \
         , "written_during_early_access                                                  as writtenDuringEarlyAccess"
         , "reviewLength                                                                 as reviewLength"
         , "wordCount                                                                    as wordCount"
-        , "vaderRatio                                                                   as vaderRatio"
+        , "uniqueWordRatio                                                              as uniqueWordRatio"
+        , "asciiRatio                                                                   as asciiRatio"
         , "isUsableForVader                                                             as isUsableForVader"
         , "containsBugReport                                                            as containsBugReport"
         , "emotionalIntensity                                                           as emotionalIntensity"
@@ -598,6 +635,9 @@ target_table.alias("t").merge(
         , "votedUp":                "s.votedUp"
         , "votesUp":                "s.votesUp"
         , "votesFunny":             "s.votesFunny"
+        , "commentCount":           "s.commentCount"
+        , "reactionTypeCount":      "s.reactionTypeCount"
+        , "reactionCount":          "s.reactionCount"
         , "weightedVoteScore":      "s.weightedVoteScore"
         , "playtimeForever":        "s.playtimeForever"
         , "playtimeAtReview":       "s.playtimeAtReview"
@@ -607,7 +647,8 @@ target_table.alias("t").merge(
         , "writtenDuringEarlyAccess": "s.writtenDuringEarlyAccess"
         , "reviewLength":           "s.reviewLength"
         , "wordCount":              "s.wordCount"
-        , "vaderRatio":             "s.vaderRatio"
+        , "uniqueWordRatio":        "s.uniqueWordRatio"
+        , "asciiRatio":             "s.asciiRatio"
         , "isUsableForVader":       "s.isUsableForVader"
         , "containsBugReport":      "s.containsBugReport"
         , "emotionalIntensity":     "s.emotionalIntensity"
@@ -631,6 +672,9 @@ target_table.alias("t").merge(
         , "votedUp":                "s.votedUp"
         , "votesUp":                "s.votesUp"
         , "votesFunny":             "s.votesFunny"
+        , "commentCount":           "s.commentCount"
+        , "reactionTypeCount":      "s.reactionTypeCount"
+        , "reactionCount":          "s.reactionCount"        
         , "weightedVoteScore":      "s.weightedVoteScore"
         , "playtimeForever":        "s.playtimeForever"
         , "playtimeAtReview":       "s.playtimeAtReview"
@@ -640,7 +684,8 @@ target_table.alias("t").merge(
         , "writtenDuringEarlyAccess": "s.writtenDuringEarlyAccess"
         , "reviewLength":           "s.reviewLength"
         , "wordCount":              "s.wordCount"
-        , "vaderRatio":             "s.vaderRatio"
+        , "uniqueWordRatio":        "s.uniqueWordRatio"
+        , "asciiRatio":             "s.asciiRatio"
         , "isUsableForVader":       "s.isUsableForVader"
         , "containsBugReport":      "s.containsBugReport"
         , "emotionalIntensity":     "s.emotionalIntensity"

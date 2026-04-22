@@ -62,7 +62,7 @@ from delta.tables import DeltaTable
 
 environment = "dev"
 load_type = "reload"   # valid options: "full", "reload", "incremental", "targeted"
-run_id = "dev_comments_and_reactions_03"
+run_id = "dev_unique_word_count_02"
 
 targeted_reload = [ '271590', '620', '1966720' ]
 
@@ -481,18 +481,28 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
     .withColumn("reviewLength", f.length(f.col("reviewText"))) \
     .withColumn("words", f.split(f.col("reviewText"), " ")) \
     .withColumn("wordCount", f.size(f.col("words"))) \
+    .withColumn("wordLengthRatio",
+        f.when(f.col("wordCount") == 0, 0.0).otherwise(
+            f.col("reviewLength") / f.col("wordCount"))
+    ) \
+    .withColumn("hasCredibleText",
+        (f.col("reviewLength") > 0)
+        & (f.col("wordLengthRatio").between(2,15))
+    ) \
+    .withColumn("uniqueWordCount", f.size(f.array_distinct(f.col("words")))) \
     .withColumn("uniqueWordRatio",
         f.when(f.col("wordCount") == 0, 0.0).otherwise(
-            f.size(f.array_distinct(f.col("words"))) / f.col("wordCount"))     # unique 'words' to total 'words'
+            f.col("uniqueWordCount") / f.col("wordCount"))     # unique 'words' to total 'words'
     ) \
     .withColumn("asciiRatio",
         f.when(f.col("reviewLengthRaw") == 0, 0.0).otherwise(
             f.length(f.regexp_replace(f.col("review"), r'[^\x00-\x7F]', '')) / f.col("reviewLengthRaw"))             # ratio of characters outside of the 0-127 ascii range. this will catch unicode and non-english characters
     ) \
-    .withColumn("isUsableForVader", 
+    .withColumn("isVaderEligible", 
         (f.col("reviewLength") > 1)
         & ((f.col("asciiRatio") >= 0.15) | (f.col("uniqueWordRatio") == 1))
         & (f.col("uniqueWordRatio") >= 0.1)
+        & (f.col("hasCredibleText"))
     ) \
     .withColumn("containsBugReport", 
         f.col("reviewText").rlike(r'(?i)\b(bug|bugs|crash|error|lag|stuck|glitch)')                                    # find any case insensitive word that starts with those elements (i.e. bug, bugging, bugged)
@@ -502,7 +512,7 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
             (f.col("reviewLength") - f.length(f.regexp_replace(f.col("reviewText"), r'!{2,}|[A-Z]', ''))) / f.col("reviewLength"))      # ratio of '!' and caps vs total length
     ) \
     .withColumn("sentimentAnalysis", 
-        f.when(f.col("isUsableForVader"), sentiment_compound(f.col("reviewText"))) \
+        f.when(f.col("isVaderEligible"), sentiment_compound(f.col("reviewText"))) \
             .otherwise(None)
      ) \
     .select(
@@ -527,9 +537,12 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
         , "written_during_early_access"
         , "reviewLength"
         , "wordCount"
+        , "wordLengthRatio"
+        , "hasCredibleText"
+        , "uniqueWordCount"
         , "uniqueWordRatio"
         , "asciiRatio"
-        , "isUsableForVader"
+        , "isVaderEligible"
         , "containsBugReport"
         , "emotionalIntensity"
         , "sentimentAnalysis.pos"
@@ -548,7 +561,7 @@ df_bronze_lookup = df_bronze_reviews_enhanced.alias("reviews") \
 columns_to_hash = [c for c in df_bronze_lookup.columns if c not in ['eId', 'steamid', 'review', 'reviewText'] ]
 
 df_bronze_reviews_final = df_bronze_lookup \
-    .withColumn("hash", f.sha2(f.concat_ws(",", *[f.col(c) for c in columns_to_hash]), 256)) \
+    .withColumn("hash", f.sha2(f.concat_ws("|", *[f.col(c) for c in columns_to_hash]), 256)) \
     .selectExpr(
         "sha2(cast(concat_ws('|', eId, steamid) as string), 256)                        as reviewKey"
         , "gameKey                                                                      as gameKey"
@@ -573,9 +586,12 @@ df_bronze_reviews_final = df_bronze_lookup \
         , "written_during_early_access                                                  as writtenDuringEarlyAccess"
         , "reviewLength                                                                 as reviewLength"
         , "wordCount                                                                    as wordCount"
+        , "wordLengthRatio                                                              as wordLengthRatio"
+        , "hasCredibleText                                                              as hasCredibleText"
+        , "uniqueWordCount                                                              as uniqueWordCount"
         , "uniqueWordRatio                                                              as uniqueWordRatio"
         , "asciiRatio                                                                   as asciiRatio"
-        , "isUsableForVader                                                             as isUsableForVader"
+        , "isVaderEligible                                                              as isVaderEligible"
         , "containsBugReport                                                            as containsBugReport"
         , "emotionalIntensity                                                           as emotionalIntensity"
         , "pos                                                                          as sentimentPositive"
@@ -647,9 +663,12 @@ target_table.alias("t").merge(
         , "writtenDuringEarlyAccess": "s.writtenDuringEarlyAccess"
         , "reviewLength":           "s.reviewLength"
         , "wordCount":              "s.wordCount"
+        , "wordLengthRatio":        "s.wordLengthRatio"
+        , "hasCredibleText":        "s.hasCredibleText"
+        , "uniqueWordCount":        "s.uniqueWordCount"
         , "uniqueWordRatio":        "s.uniqueWordRatio"
         , "asciiRatio":             "s.asciiRatio"
-        , "isUsableForVader":       "s.isUsableForVader"
+        , "isVaderEligible":       "s.isVaderEligible"
         , "containsBugReport":      "s.containsBugReport"
         , "emotionalIntensity":     "s.emotionalIntensity"
         , "sentimentPositive":      "s.sentimentPositive"
@@ -684,9 +703,12 @@ target_table.alias("t").merge(
         , "writtenDuringEarlyAccess": "s.writtenDuringEarlyAccess"
         , "reviewLength":           "s.reviewLength"
         , "wordCount":              "s.wordCount"
+        , "wordLengthRatio":        "s.wordLengthRatio"
+        , "hasCredibleText":        "s.hasCredibleText"        
+        , "uniqueWordCount":        "s.uniqueWordCount"
         , "uniqueWordRatio":        "s.uniqueWordRatio"
         , "asciiRatio":             "s.asciiRatio"
-        , "isUsableForVader":       "s.isUsableForVader"
+        , "isVaderEligible":       "s.isVaderEligible"
         , "containsBugReport":      "s.containsBugReport"
         , "emotionalIntensity":     "s.emotionalIntensity"
         , "sentimentPositive":      "s.sentimentPositive"

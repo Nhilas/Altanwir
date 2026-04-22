@@ -52,7 +52,11 @@ from delta.tables import DeltaTable
 
 environment = "dev"
 load_type = "reload"   # valid options: "full", "reload", "incremental", "targeted"
-run_id = "renameTest"
+run_id = "gold_enhancement_04"
+
+# threshold for salting; 9999999 effectively turns off salting. if a game ever gets 10 million reviews we have bigger problems anyway. lol
+hot_key_threshold = 50000
+salt_factor = 32
 
 # format this as a list. only used if load_type = 'targeted'. only accepts gameKeys
 targeted_reload = [ 'fee1882ab7f5f816b65f0cd5b277fb74c058352c5a95c6e302f07bc423aa717f', '9b82015126416c80cc13505a3f254f33336e37432509bab854553afd2b51f4fb', 'f6121e9cec01d2dc9c3f8762f2ed088c6e4b3cdf32b26a970a73e3eae5dd3351']
@@ -108,9 +112,38 @@ audit_database = 'IGDBAudit'
 
 # CELL ********************
 
-print(f"Gold Steam Reviews ELT Initiated with load_type = '{load_type}', for run_id = '{run_id}'")
+community_weights = {
+    'helpfulnessWeight': 0.45,
+    'funninessWeight': 0.20,
+    'commentWeight': 0.25,
+    'reactionWeight': 0.1
+}
+
+influence_weights = {
+    'w_community': 1.5,
+    'w_length': 0.5,
+    'w_emotional': 0.3,
+    'w_playtime': 1.0,
+    'w_sentiment': 1.0
+}
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+print(f"Gold Steam Reviews ETL Initiated with load_type = '{load_type}', for run_id = '{run_id}'")
 print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {audit_database}.{audit_schema}")
-print(f"Loading from {source_path} into {target_path}")
+print(f"\nLoading from {source_path} into {target_path}")
+print("\nConfiguration:")
+print(f"* Hot Key Threshold = {hot_key_threshold}")
+print(f"* Salt Factor = {salt_factor}")
+print(f"* Community Weights = {json.dumps(community_weights, indent=4)}")
+print(f"* Influence Weights = {json.dumps(influence_weights, indent=4)}")
 
 # METADATA ********************
 
@@ -284,80 +317,160 @@ else:
 
 # CELL ********************
 
-source_query = f"""
-with raw_silver as (
-    select
-        reviewKey
-        , gameKey
-        , reviewCleaned
-        , votedUp
-        , votesUp
-        , votesFunny
-        , weightedVoteScore
-        , playtimeAtReview
-        , refunded
-        , writtenDuringEarlyAccess
-        , reviewLength
-        , wordCount
-        , containsBugReport
-        , emotionalIntensity
-        , isUsableForVader
-        , sentimentCompound
-    from {from_clause}
-)
+hot_keys_rows = spark.sql(f"select gameKey, count(*) as reviewCount from {from_clause} group by gameKey having reviewCount > {hot_key_threshold}").collect()
+hot_keys = [row['gameKey'] for row in hot_keys_rows]
+print(f"Identified {len(hot_keys)} games with more than {hot_key_threshold} reviews. These keys will be salted to optimize aggregation performance.")
 
-, game_stats as (
-    select
-        gameKey
-        , max(votesUp) as max_votesUp
-        , max(reviewLength) as max_reviewLength
-    from raw_silver
-    group by gameKey
-)
+raw_query = f"""
+select
+    reviewKey
+    , gameKey
+    , reviewCleaned
+    , votedUp
+    , votesUp
+    , votesFunny
+    , commentCount
+    , reactionCount
+    , weightedVoteScore as steamWeightedVoteScore
+    , playtimeAtReview
+    , refunded
+    , writtenDuringEarlyAccess
+    , reviewLength
+    , wordCount
+    , wordLengthRatio
+    , uniqueWordRatio
+    , hasCredibleText
+    , isVaderEligible    
+    , containsBugReport
+    , emotionalIntensity
+    , sentimentCompound
+from {from_clause}
+"""
 
-, aux_silver as (
-    select
-        r.*
-        , gs.max_votesUp
-        , gs.max_reviewLength
-        , round(percent_rank() over (partition by r.gameKey order by playtimeAtReview)*100) as playtimePercentile
-        , coalesce(log(votesUp + 1) / nullif(log(max_votesUp + 1),0),0) as communityWeight
-        , coalesce(log(reviewLength + 1) / nullif(log(max_reviewLength + 1),0),0) as lengthWeight
-    from raw_silver as r
-    left join game_stats as gs
-        on r.gameKey = gs.gameKey
-)
+df_silver_raw = spark.sql(raw_query) \
+    .withColumn("salt", 
+        f.when(f.col("gameKey").isin(hot_keys), (f.rand() * salt_factor).cast("int"))
+            .otherwise(f.lit(0))
+    )
 
-, enhanced_silver as (
-    select 
+df_silver_game_stats_salted = df_silver_raw.groupBy("gameKey", "salt") \
+    .agg(
+        f.max("votesUp").alias("max_votesUp"),
+        f.max("votesFunny").alias("max_votesFunny"),
+        f.max("commentCount").alias("max_commentCount"),
+        f.max("reactionCount").alias("max_reactionCount"),
+        f.max(f.when(f.col("hasCredibleText") == True, f.col("reviewLength"))).alias("max_reviewLength"),
+        f.sum("playtimeAtReview").alias("sum_playtime"),
+        f.count("reviewKey").alias("reviewCount")
+    ) \
+    .select("gameKey", "max_votesUp", "max_votesFunny", "max_commentCount", "max_reactionCount", "max_reviewLength", "sum_playtime", "reviewCount")
+
+df_silver_game_stats = df_silver_game_stats_salted.groupBy("gameKey") \
+    .agg(
+        f.max("max_votesUp").alias("max_votesUp"),
+        f.max("max_votesFunny").alias("max_votesFunny"),
+        f.max("max_commentCount").alias("max_commentCount"),
+        f.max("max_reactionCount").alias("max_reactionCount"),
+        f.max("max_reviewLength").alias("max_reviewLength"),
+        (f.sum("sum_playtime") / f.sum("reviewCount")).alias("avg_playtime")
+    ) \
+    .select("gameKey", "max_votesUp", "max_votesFunny", "max_commentCount", "max_reactionCount", "max_reviewLength", "avg_playtime")
+
+df_silver_game_max_stats = df_silver_raw \
+    .join(f.broadcast(df_silver_game_stats), on= "gameKey", how="left") \
+    .select(
+        "reviewKey"
+        , "gameKey"
+        , "reviewCleaned"
+        , "votedUp"
+        , "votesUp"
+        , "votesFunny"
+        , "commentCount"
+        , "reactionCount"
+        , "steamWeightedVoteScore"
+        , "playtimeAtReview"
+        , "refunded"
+        , "writtenDuringEarlyAccess"
+        , "reviewLength"
+        , "wordCount"
+        , "wordLengthRatio"
+        , "uniqueWordRatio"
+        , "hasCredibleText"
+        , "isVaderEligible"        
+        , "containsBugReport"
+        , "emotionalIntensity"
+        , "sentimentCompound"
+        , "max_votesUp"
+        , "max_votesFunny"
+        , "max_commentCount"
+        , "max_reactionCount"
+        , "max_reviewLength"
+        , "avg_playtime"
+    )
+
+df_silver_game_max_stats.createOrReplaceTempView("silver_reviews_with_game_stats")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+merge_source_query = f"""
+with aux_silver as (
+    select
         *
-        , case 
-            when playtimePercentile >= 67 then 'Hardcore'
-            when playtimePercentile between 34 and 66 then 'Regular'
-            when playtimePercentile <= 33 then 'Casual'
-        end as playtimeBucket
-        , case 
-            when sentimentCompound is not NULL then
-                case
-                    when sentimentCompound >= 0.05 then 'Positive'
-                    when sentimentCompound <= -0.05 then 'Negative'
-                    else 'Neutral'
-                end
-            else NULL
-        end as sentimentLabel
-        , case when votedUp = True then 1 else -1 end as voteSignal
+        , percent_rank() over (partition by gameKey order by playtimeAtReview) as playtimePercentile
+        , coalesce(log(votesUp + 1) / nullif(log(max_votesUp + 1),0),0) as helpfulnessRatio
+        , coalesce(log(votesFunny + 1) / nullif(log(max_votesFunny + 1),0),0) as funninessRatio
+        , coalesce(log(commentCount + 1) / nullif(log(max_commentCount + 1),0),0) as commentRatio
+        , coalesce(log(reactionCount + 1) / nullif(log(max_reactionCount + 1),0),0) as reactionRatio
+        , coalesce(log(reviewLength + 1) / nullif(log(max_reviewLength + 1),0),0) as lengthRatio
+        , case when votedUp = True then 1 else -1 end as voteDirection
         , case
-            when isUsableForVader and sentimentCompound <> 0 then sign(sentimentCompound)
-            when isUsableForVader and sentimentCompound = 0 then
+            when isVaderEligible and sentimentCompound <> 0 then sign(sentimentCompound)
+            when isVaderEligible and sentimentCompound = 0 then
                 case when votedUp = True then 1 else -1 end
-        end as sentimentSignal
-        , emotionalIntensity * 0.5 as emotionalWeight
-        , case
-            when isUsableForVader = True
-                then ( playtimePercentile/100 + abs(sentimentCompound) + communityWeight + lengthWeight + emotionalWeight ) / 4.5
-            else ( playtimePercentile/100 + communityWeight + emotionalWeight ) / 2.5
-        end as reviewInfluenceScore
+        end as sentimentDirection
+    from silver_reviews_with_game_stats
+)
+
+, influence_base as (
+    select *
+        , {community_weights['helpfulnessWeight']} * helpfulnessRatio 
+            + {community_weights['funninessWeight']} * funninessRatio 
+            + {community_weights['commentWeight']} * commentRatio 
+            + {community_weights['reactionWeight']} * reactionRatio 
+        as communitySignal
+        , case when hasCredibleText = True then lengthRatio * uniqueWordRatio else NULL end as lengthSignal
+        , case when hasCredibleText = True then least(emotionalIntensity, {influence_weights['w_emotional']}) / {influence_weights['w_emotional']} else NULL end as emotionalSignal
+        , playtimePercentile as playtimeSignal
+        , case when isVaderEligible = True then abs(sentimentCompound) else NULL end as sentimentSignal
+
+        , case when hasCredibleText = True then {influence_weights['w_length']} else 0 end as w_length
+        , case when hasCredibleText = True then {influence_weights['w_emotional']} else 0 end as w_emotional
+        , case when avg_playtime > 0 then {influence_weights['w_playtime']} else 0 end as w_playtime
+        , case when isVaderEligible = True then {influence_weights['w_sentiment']} else 0 end as w_sentiment
     from aux_silver
+)
+
+, influence_formula as (
+    select *
+        , ( {influence_weights['w_community']} * communitySignal
+            + w_length * coalesce(lengthSignal, 0)
+            + w_emotional * coalesce(emotionalSignal, 0)
+            + w_playtime * playtimeSignal
+            + w_sentiment * coalesce(sentimentSignal, 0) )
+            / (  {influence_weights['w_community']} 
+                + w_length
+                + w_emotional
+                + w_playtime
+                + w_sentiment )
+        as reviewInfluenceScore        
+    from influence_base
 )
 
 select
@@ -368,35 +481,43 @@ select
     , votedUp
     , votesUp
     , votesFunny
-    , communityWeight
+    , commentCount
+    , reactionCount
+    , communitySignal
 
     , reviewLength
-    , wordCount    
-    , lengthWeight
+    , wordCount
+    , wordLengthRatio
+    , uniqueWordRatio
+    , hasCredibleText
+    , lengthSignal
 
     , playtimeAtReview
-    , playtimePercentile
-    , playtimeBucket
+    , playtimeSignal
+
+    , isVaderEligible
+    , sentimentCompound
+    , sentimentSignal
+    , sentimentDirection
+
+    , emotionalIntensity
+    , emotionalSignal
+
+    , voteDirection
+    , reviewInfluenceScore
+    , steamWeightedVoteScore
 
     , refunded
     , writtenDuringEarlyAccess
-    , containsBugReport
-    
-    , sentimentCompound
-    , sentimentLabel
-    , emotionalIntensity
-    , emotionalWeight
+    , containsBugReport    
+from influence_formula
 
-    , voteSignal
-    , sentimentSignal
-    , reviewInfluenceScore
-    , weightedVoteScore
-from enhanced_silver
 """
 
-df_silver_reviews_processed = spark.sql(source_query)
+df_silver_reviews_processed = spark.sql(merge_source_query)
 
-columns_to_hash = [c for c in df_silver_reviews_processed.columns if c not in ['reviewKey'] ]
+# hash excludes review raw and review cleaned for performance reasons; they can be quite large, and any change in the text is already captured by length, review metadata, ratios, sentiment and so on
+columns_to_hash = [c for c in df_silver_reviews_processed.columns if c not in ['reviewKey', 'reviewCleaned'] ]
 
 df_silver_reviews = df_silver_reviews_processed \
     .withColumn("hash", f.sha2(f.concat_ws("|", *[f.col(c) for c in columns_to_hash]), 256))
@@ -441,31 +562,37 @@ target_table.alias("t").merge(
 ).whenMatchedUpdate(
     condition="t.hash != s.hash",
     set={
-        "t.gameKey":                   "s.gameKey",
-        "t.reviewCleaned":             "s.reviewCleaned",
-        "t.votedUp":                   "s.votedUp",
-        "t.votesUp":                   "s.votesUp",
-        "t.votesFunny":                "s.votesFunny",
-        "t.communityWeight":           "s.communityWeight",
-        "t.reviewLength":              "s.reviewLength",
-        "t.wordCount":                 "s.wordCount",
-        "t.lengthWeight":              "s.lengthWeight",
-        "t.playtimeAtReview":          "s.playtimeAtReview",
-        "t.playtimePercentile":        "s.playtimePercentile",
-        "t.playtimeBucket":            "s.playtimeBucket",
-        "t.refunded":                  "s.refunded",
-        "t.writtenDuringEarlyAccess":  "s.writtenDuringEarlyAccess",
-        "t.containsBugReport":         "s.containsBugReport",
-        "t.sentimentCompound":         "s.sentimentCompound",
-        "t.sentimentLabel":            "s.sentimentLabel",
-        "t.emotionalIntensity":        "s.emotionalIntensity",
-        "t.emotionalWeight":           "s.emotionalWeight",
-        "t.voteSignal":                "s.voteSignal",
-        "t.sentimentSignal":           "s.sentimentSignal",
-        "t.reviewInfluenceScore":      "s.reviewInfluenceScore",
-        "t.weightedVoteScore":         "s.weightedVoteScore",
-        "t.update_run_id":             f"'{run_id}'",
-        "t.hash":                      "s.hash",
+        "reviewKey":                  "s.reviewKey",
+        "gameKey":                    "s.gameKey",
+        "reviewCleaned":              "s.reviewCleaned",
+        "votedUp":                    "s.votedUp",
+        "votesUp":                    "s.votesUp",
+        "votesFunny":                 "s.votesFunny",
+        "commentCount":               "s.commentCount",
+        "reactionCount":              "s.reactionCount",
+        "communitySignal":            "s.communitySignal",
+        "reviewLength":               "s.reviewLength",
+        "wordCount":                  "s.wordCount",
+        "wordLengthRatio":            "s.wordLengthRatio",
+        "hasCredibleText":            "s.hasCredibleText",
+        "uniqueWordRatio":            "s.uniqueWordRatio",
+        "lengthSignal":               "s.lengthSignal",
+        "playtimeAtReview":           "s.playtimeAtReview",
+        "playtimeSignal":             "s.playtimeSignal",
+        "isVaderEligible":            "s.isVaderEligible",
+        "sentimentCompound":          "s.sentimentCompound",
+        "sentimentSignal":            "s.sentimentSignal",
+        "sentimentDirection":         "s.sentimentDirection",
+        "emotionalIntensity":         "s.emotionalIntensity",
+        "emotionalSignal":            "s.emotionalSignal",
+        "voteDirection":              "s.voteDirection",
+        "reviewInfluenceScore":       "s.reviewInfluenceScore",
+        "steamWeightedVoteScore":     "s.steamWeightedVoteScore",
+        "refunded":                   "s.refunded",
+        "writtenDuringEarlyAccess":   "s.writtenDuringEarlyAccess",
+        "containsBugReport":          "s.containsBugReport",    
+        "t.update_run_id":            f"'{run_id}'",
+        "t.hash":                     "s.hash",
     }
 ).whenNotMatchedInsert(
     values={
@@ -475,29 +602,35 @@ target_table.alias("t").merge(
         "votedUp":                  "s.votedUp",
         "votesUp":                  "s.votesUp",
         "votesFunny":               "s.votesFunny",
-        "communityWeight":          "s.communityWeight",
+        "commentCount":             "s.commentCount",
+        "reactionCount":            "s.reactionCount",
+        "communitySignal":          "s.communitySignal",
         "reviewLength":             "s.reviewLength",
         "wordCount":                "s.wordCount",
-        "lengthWeight":             "s.lengthWeight",
+        "wordLengthRatio":          "s.wordLengthRatio",
+        "hasCredibleText":          "s.hasCredibleText",        
+        "uniqueWordRatio":          "s.uniqueWordRatio",
+        "lengthSignal":             "s.lengthSignal",
         "playtimeAtReview":         "s.playtimeAtReview",
-        "playtimePercentile":       "s.playtimePercentile",
-        "playtimeBucket":           "s.playtimeBucket",
+        "playtimeSignal":           "s.playtimeSignal",
+        "isVaderEligible":          "s.isVaderEligible",
+        "sentimentCompound":        "s.sentimentCompound",
+        "sentimentSignal":          "s.sentimentSignal",
+        "sentimentDirection":       "s.sentimentDirection",
+        "emotionalIntensity":       "s.emotionalIntensity",
+        "emotionalSignal":          "s.emotionalSignal",
+        "voteDirection":            "s.voteDirection",
+        "reviewInfluenceScore":     "s.reviewInfluenceScore",
+        "steamWeightedVoteScore":   "s.steamWeightedVoteScore",
         "refunded":                 "s.refunded",
         "writtenDuringEarlyAccess": "s.writtenDuringEarlyAccess",
-        "containsBugReport":        "s.containsBugReport",
-        "sentimentCompound":        "s.sentimentCompound",
-        "sentimentLabel":           "s.sentimentLabel",
-        "emotionalIntensity":       "s.emotionalIntensity",
-        "emotionalWeight":          "s.emotionalWeight",
-        "voteSignal":               "s.voteSignal",
-        "sentimentSignal":          "s.sentimentSignal",
-        "reviewInfluenceScore":     "s.reviewInfluenceScore",
-        "weightedVoteScore":        "s.weightedVoteScore",
+        "containsBugReport":        "s.containsBugReport",        
         "insert_run_id":            f"'{run_id}'",
         "update_run_id":            "null",
         "hash":                     "s.hash",
     }
 ).execute()
+
 
 audit_row = target_table.history(1).collect()
 version_after = audit_row[0][0]
@@ -528,6 +661,45 @@ if version_before != version_after:
     spark.sql(optimize_query)
 
     print(f"OPTIMIZE Completed!")    
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+query = "DESCRIBE DETAIL bronze.steamreviews"
+
+spark.sql(query).show(truncate=False)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+query = "DESCRIBE DETAIL silver.steamreviews"
+
+spark.sql(query).show(truncate=False)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+query = "DESCRIBE DETAIL gold.factreviews"
+
+spark.sql(query).show(truncate=False)
 
 # METADATA ********************
 

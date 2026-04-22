@@ -52,7 +52,7 @@ from delta.tables import DeltaTable
 
 environment = "dev"
 load_type = "reload"   # valid options: "full", "reload", "targeted"
-run_id = "dev_game_scores_001"
+run_id = "dev_igdb_smoothing_02"
 
 # format this as a list. only used if load_type = 'targeted'. only accepts gameKeys
 targeted_reload = [ 'fee1882ab7f5f816b65f0cd5b277fb74c058352c5a95c6e302f07bc423aa717f', '9b82015126416c80cc13505a3f254f33336e37432509bab854553afd2b51f4fb', 'f6121e9cec01d2dc9c3f8762f2ed088c6e4b3cdf32b26a970a73e3eae5dd3351']
@@ -74,10 +74,8 @@ lakehouse_name = "IGDBAnalytics" if environment == "prod" else "IGDBAnalytics_De
 audit_schema = "dev" if environment == "dev" else "steam"
 
 games_path = f"{lakehouse_name}.silver.games"
-games_table = DeltaTable.forName(spark, games_path)
 
 reviews_path = f"{lakehouse_name}.gold.factReviews"
-reviews_table = DeltaTable.forName(spark, reviews_path)
 
 target_path = f"{lakehouse_name}.gold.factGameScores"
 target_table = DeltaTable.forName(spark, target_path)
@@ -107,7 +105,7 @@ audit_database = 'IGDBAudit'
 
 # CELL ********************
 
-print(f"Gold gaming scores ELT Initiated with load_type = '{load_type}', for run_id = '{run_id}'")
+print(f"Gold gaming scores ETL Initiated with load_type = '{load_type}', for run_id = '{run_id}'")
 print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {audit_database}.{audit_schema}")
 print(f"Loading {target_path} from:\n\t- {games_path}\n\t- {reviews_path}")
 
@@ -219,10 +217,51 @@ elif load_type == 'targeted' and targeted_reload:
     sep = "', '"
     gameKey_predicate = f"'{sep.join(targeted_reload)}'"
     from_clause = f"{games_path}\n\twhere gameKey in ({gameKey_predicate})"
-    print(f"WARNING! Load_type is set as {load_type}. Percentile values are relative to the target set, not the full dataset. Strongly recommend 'reload' load_type instead")
 else:
     print(f"Invalid load_type: {load_type}! Shutting down")
     notebookutils.notebook.exit("Wrong load_type")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+print(f"Calculating global priors...")
+
+review_prior_query = f"""
+    with weighted_sentiment_review_prior as (
+        select
+            sum(coalesce(sentimentDirection, 0) * reviewInfluenceScore) / nullif(sum(reviewInfluenceScore),0) as weightedSentiment
+            , sum(voteDirection * reviewInfluenceScore) / nullif(sum(reviewInfluenceScore),0) as weightedVote
+        from {reviews_path}
+    )
+    select 
+        ( weightedSentiment + 1 ) / 2 as sentiment_prior
+        , ( weightedVote + 1 ) / 2 as vote_prior
+    from weighted_sentiment_review_prior
+"""
+
+igdb_prior_query = f"""
+    select 
+        avg(aggregatedRating)/100 as igdb_rating_prior
+    from {games_path}
+        where ifnull(aggregatedRating,0) > 0
+"""
+
+review_prior_row = spark.sql(review_prior_query).collect()[0]
+weighted_sentiment_prior = review_prior_row.sentiment_prior
+weighted_vote_prior = review_prior_row.vote_prior
+
+igdb_rating_prior = spark.sql(igdb_prior_query).collect()[0]['igdb_rating_prior']
+
+print(f"""Established priors:
+    * IGDB Rating ~= {round(igdb_rating_prior, 4)}
+    * Weighted Sentiment Compound ~= {round(weighted_sentiment_prior, 4)}
+    * Weighted Vote ~= {round(weighted_vote_prior, 4)}""")
 
 # METADATA ********************
 
@@ -237,36 +276,32 @@ source_query = f"""
 with silver_games as (
     select
         gameKey
-        , gameName
-        , aggregatedRating
-        , aggregatedRatingSourceCount
+        , aggregatedRating / 100.0 as pctIGDBRating
+        , aggregatedRatingSourceCount as IGDBSourceCount
     from {from_clause}
 )
 
-, game_ratings as (
-    select
-        *
-        , percent_rank() over (order by aggregatedRating) as percentileRating        
-        , percent_rank() over (order by aggregatedRatingSourceCount) as percentileSourceCount    
+, igdb_games_smoothed as (
+    select *
+        , pctIGDBRating - (pctIGDBRating - {igdb_rating_prior}) * pow(2, -log10(IGDBSourceCount + 1)) as smoothedIGDBRating
     from silver_games
     where
-        ifnull(aggregatedRating,0) > 0
-        and ifnull(aggregatedRatingSourceCount,0) > 0    
+        ifnull(pctIGDBRating,0) > 0
+        and ifnull(IGDBSourceCount,0) > 0
 )
 
 , review_stats as (
     select
         r.gameKey
-        , gameName
         , count(*) as totalReviews
-        , sum(case when sentimentSignal is not Null then 1 else 0 end) as sentimentReviews
+        , sum(case when sentimentDirection is not Null then 1 else 0 end) as sentimentReviews
 
-        , sum(case when sentimentLabel = 'Positive' then 1.0 else 0.0 end) as positiveSentiment
-        , sum(case when sentimentLabel = 'Neutral' then 1.0 else 0.0 end) as neutralSentiment
-        , sum(case when sentimentLabel = 'Negative' then 1.0 else 0.0 end) as negativeSentiment
+        , sum(case when sentimentCompound >= 0.05 then 1.0 else 0.0 end) as positiveSentiment
+        , sum(case when sentimentCompound <= -0.05 then 1.0 else 0.0 end) as negativeSentiment
+        , sum(case when sentimentCompound > -0.05 and sentimentCompound < 0.05 then 1.0 else 0.0 end) as neutralSentiment
 
-        , sum(sentimentSignal * reviewInfluenceScore) / nullif(sum(reviewInfluenceScore),0) as weightedSentiment
-        , sum(voteSignal * reviewInfluenceScore) / nullif(sum(reviewInfluenceScore),0) as weightedVote
+        , sum(sentimentDirection * reviewInfluenceScore) / nullif(sum(reviewInfluenceScore),0) as weightedSentiment
+        , sum(voteDirection * reviewInfluenceScore) / nullif(sum(reviewInfluenceScore),0) as weightedVote
         , sum(case when votedUp = True then 1.0 else 0.0 end) as votedUp        
 
         , sum(case when writtenDuringEarlyAccess = True then 1.0 else 0.0 end) as earlyAccess
@@ -281,7 +316,6 @@ with silver_games as (
         on r.gameKey = g.gameKey
     group by
         r.gameKey
-        , gameName
 )
 
 , enhanced_review_stats as (
@@ -303,29 +337,20 @@ with silver_games as (
 
 , rating_review_stats as (
     select *
-        , pctWeightedSentiment - (pctWeightedSentiment - 0.5) * pow(2, -log10(sentimentReviews + 1)) as weightedSentimentRating
-        , pctWeightedVote - (pctWeightedVote - 0.5) * pow(2, -log10(totalReviews + 1)) as weightedVoteRating
+        , pctWeightedSentiment - (pctWeightedSentiment - {weighted_sentiment_prior}) * pow(2, -log10(sentimentReviews + 1)) as weightedSentimentRating
+        , pctWeightedVote - (pctWeightedVote - {weighted_vote_prior}) * pow(2, -log10(totalReviews + 1)) as weightedVoteRating
         , pctVotedUp - (pctVotedUp - 0.5) * pow(2, -log10(totalReviews + 1)) as voteRating
     from enhanced_review_stats
 )
 
-, percentile_review_stats as (
-    select *
-        , percent_rank() over (order by weightedSentimentRating) as percentileWeightedSentiment
-        , percent_rank() over (order by weightedVoteRating) as percentileWeightedVote
-    from rating_review_stats
-)
-
 select
-    coalesce(gr.gameKey, grs.gameKey) as gameKey
-    , coalesce(gr.gameName, grs.gameName) as gameName
+    gr.gameKey
 
-    -- IGDB ratings and source counts + percentiles
-    , aggregatedRating
-    , percentileRating
+    -- IGDB ratings and source counts
+    , pctIGDBRating
+    , smoothedIGDBRating
     
-    , aggregatedRatingSourceCount
-    , percentileSourceCount
+    , IGDBSourceCount
 
     -- total reviews & total reviews with text that could be parsed for sentiment
     , totalReviews
@@ -349,8 +374,6 @@ select
         pctWeightedVote => same logic as pctWeightedSentiment
         weightedVoteRating => same logic as weightedSentimentRating
 
-        percentile => simple percentile logic across the entire (valid) dataset
-
         sentimentVoteAlignment => the difference between sentiment and vote. 
             positive number = feelings are more positive than weighted vote rating suggests
             negative number = feelings are more negative than weighted vote rating suggests
@@ -359,12 +382,10 @@ select
     , weightedSentiment
     , pctWeightedSentiment
     , weightedSentimentRating
-    , percentileWeightedSentiment
 
     , weightedVote
     , pctWeightedVote    
     , weightedVoteRating
-    , percentileWeightedVote
 
     -- steam's formula; uses the likes to total ratio and adjust it based on total reviews
     , pctVotedUp
@@ -374,8 +395,8 @@ select
     , pctEarlyAccess
     , pctBugReports
     , pctRefunded
-from game_ratings as gr
-full outer join percentile_review_stats as grs
+from igdb_games_smoothed as gr
+left join rating_review_stats as grs
     on gr.gameKey = grs.gameKey
 """
 
@@ -427,11 +448,9 @@ target_table.alias("t").merge(
 ).whenMatchedUpdate(
     condition="t.hash != s.hash",
     set={
-        "t.gameName":                     "s.gameName",
-        "t.aggregatedRating":             "s.aggregatedRating",
-        "t.percentileRating":             "s.percentileRating",
-        "t.aggregatedRatingSourceCount":  "s.aggregatedRatingSourceCount",
-        "t.percentileSourceCount":        "s.percentileSourceCount",
+        "t.pctIGDBRating":                "s.pctIGDBRating",
+        "t.smoothedIGDBRating":           "s.smoothedIGDBRating",
+        "t.IGDBSourceCount":              "s.IGDBSourceCount",
         "t.totalReviews":                 "s.totalReviews",
         "t.sentimentReviews":             "s.sentimentReviews",
         "t.avgPlaytimeAtReview":          "s.avgPlaytimeAtReview",
@@ -444,11 +463,9 @@ target_table.alias("t").merge(
         "t.weightedSentiment":            "s.weightedSentiment",
         "t.pctWeightedSentiment":         "s.pctWeightedSentiment",
         "t.weightedSentimentRating":      "s.weightedSentimentRating",
-        "t.percentileWeightedSentiment":  "s.percentileWeightedSentiment",
         "t.weightedVote":                 "s.weightedVote",
         "t.pctWeightedVote":              "s.pctWeightedVote",
         "t.weightedVoteRating":           "s.weightedVoteRating",
-        "t.percentileWeightedVote":       "s.percentileWeightedVote",
         "t.pctVotedUp":                   "s.pctVotedUp",
         "t.voteRating":                   "s.voteRating",
         "t.pctEarlyAccess":               "s.pctEarlyAccess",
@@ -460,11 +477,9 @@ target_table.alias("t").merge(
 ).whenNotMatchedInsert(
     values={
         "gameKey":                    "s.gameKey",
-        "gameName":                   "s.gameName",
-        "aggregatedRating":           "s.aggregatedRating",
-        "percentileRating":           "s.percentileRating",
-        "aggregatedRatingSourceCount": "s.aggregatedRatingSourceCount",
-        "percentileSourceCount":      "s.percentileSourceCount",
+        "pctIGDBRating":              "s.pctIGDBRating",
+        "smoothedIGDBRating":         "s.smoothedIGDBRating",
+        "IGDBSourceCount":            "s.IGDBSourceCount",
         "totalReviews":               "s.totalReviews",
         "sentimentReviews":           "s.sentimentReviews",
         "avgPlaytimeAtReview":        "s.avgPlaytimeAtReview",
@@ -477,11 +492,9 @@ target_table.alias("t").merge(
         "weightedSentiment":          "s.weightedSentiment",
         "pctWeightedSentiment":       "s.pctWeightedSentiment",
         "weightedSentimentRating":    "s.weightedSentimentRating",
-        "percentileWeightedSentiment": "s.percentileWeightedSentiment",
         "weightedVote":               "s.weightedVote",
         "pctWeightedVote":            "s.pctWeightedVote",
         "weightedVoteRating":         "s.weightedVoteRating",
-        "percentileWeightedVote":     "s.percentileWeightedVote",
         "pctVotedUp":                 "s.pctVotedUp",
         "voteRating":                 "s.voteRating",
         "pctEarlyAccess":             "s.pctEarlyAccess",

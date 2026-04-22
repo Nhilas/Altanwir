@@ -97,7 +97,7 @@ create table if not exists {lakehouse_name}.bronze.steamReviews (
     , update_execution_id STRING
 )
 USING DELTA
-CLUSTER BY (app_id)
+CLUSTER BY (recommendationid)
 TBLPROPERTIES (
     'delta.autoOptimize.optimizeWrite' = 'true',
     'delta.autoOptimize.autoCompact' = 'true',
@@ -142,9 +142,12 @@ create table if not exists {lakehouse_name}.silver.steamReviews (
     , writtenDuringEarlyAccess BOOLEAN
     , reviewLength INT
     , wordCount INT
+    , wordLengthRatio FLOAT
+    , hasCredibleText BOOLEAN
+    , uniqueWordCount INT
     , uniqueWordRatio FLOAT
     , asciiRatio FLOAT
-    , isUsableForVader BOOLEAN
+    , isVaderEligible BOOLEAN
     , containsBugReport BOOLEAN
     , emotionalIntensity FLOAT
     , sentimentPositive FLOAT
@@ -156,7 +159,7 @@ create table if not exists {lakehouse_name}.silver.steamReviews (
     , hash STRING
 )
 USING DELTA
-CLUSTER BY (eId)
+CLUSTER BY (reviewKey)
 TBLPROPERTIES (
     'delta.autoOptimize.optimizeWrite' = 'true',
     'delta.autoOptimize.autoCompact' = 'true',
@@ -190,29 +193,35 @@ create table if not exists {lakehouse_name}.gold.factReviews (
     , votedUp BOOLEAN
     , votesUp INT
     , votesFunny INT
-    , communityWeight FLOAT
+    , commentCount INT
+    , reactionCount INT
+    , communitySignal FLOAT
 
     , reviewLength INT
     , wordCount INT
-    , lengthWeight FLOAT
+    , wordLengthRatio FLOAT
+    , uniqueWordRatio FLOAT
+    , hasCredibleText BOOLEAN
+    , lengthSignal FLOAT
 
     , playtimeAtReview INT
-    , playtimePercentile INT
-    , playtimeBucket STRING
+    , playtimeSignal FLOAT
+
+    , isVaderEligible BOOLEAN
+    , sentimentCompound FLOAT
+    , sentimentSignal FLOAT
+    , sentimentDirection INT
+
+    , emotionalIntensity FLOAT
+    , emotionalSignal FLOAT
+
+    , voteDirection INT
+    , reviewInfluenceScore FLOAT
+    , steamWeightedVoteScore FLOAT
 
     , refunded BOOLEAN
     , writtenDuringEarlyAccess BOOLEAN
     , containsBugReport BOOLEAN
-
-    , sentimentCompound FLOAT
-    , sentimentLabel STRING
-    , emotionalIntensity FLOAT
-    , emotionalWeight FLOAT
-
-    , voteSignal INT
-    , sentimentSignal INT
-    , reviewInfluenceScore FLOAT
-    , weightedVoteScore FLOAT
 
     , insert_run_id STRING
     , update_run_id STRING
@@ -230,6 +239,7 @@ TBLPROPERTIES (
 
 spark.sql(ddl_query)
 
+
 # METADATA ********************
 
 # META {
@@ -243,12 +253,10 @@ spark.sql(ddl_query)
 ddl_query = f"""
 create table if not exists {lakehouse_name}.gold.factGameScores (
     gameKey STRING
-	, gameName STRING
 
-	, aggregatedRating DOUBLE
-	, percentileRating DOUBLE
-	, aggregatedRatingSourceCount BIGINT
-	, percentileSourceCount DOUBLE
+	, pctIGDBRating DOUBLE
+	, smoothedIGDBRating DOUBLE
+	, IGDBSourceCount BIGINT
 
 	, totalReviews BIGINT
 	, sentimentReviews BIGINT
@@ -265,12 +273,10 @@ create table if not exists {lakehouse_name}.gold.factGameScores (
 	, weightedSentiment DOUBLE
 	, pctWeightedSentiment DOUBLE
 	, weightedSentimentRating DOUBLE
-	, percentileWeightedSentiment DOUBLE
 
 	, weightedVote DOUBLE
 	, pctWeightedVote DOUBLE
 	, weightedVoteRating DOUBLE
-	, percentileWeightedVote DOUBLE
 
 	, pctVotedUp DOUBLE
 	, voteRating DOUBLE

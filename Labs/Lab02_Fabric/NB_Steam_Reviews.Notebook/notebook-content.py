@@ -484,8 +484,9 @@ else:
                         , last_retrieved_timestamp
                         , last_retrieved_cursor
                         , output_path
+                        , is_loaded
                     )
-                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 argsControl = [
                     audit_dict["app_id"]
@@ -501,6 +502,7 @@ else:
                     , audit_dict["last_retrieved_timestamp"]
                     , audit_dict["last_retrieved_cursor"]
                     , audit_dict["output_path"]
+                    , 0
                 ]
 
                 queryOrchestrator = """

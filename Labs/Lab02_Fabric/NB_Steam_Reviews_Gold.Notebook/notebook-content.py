@@ -48,7 +48,7 @@ from delta.tables import DeltaTable
 
 # # Parameters
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
 environment = "dev"
 load_type = "reload"   # valid options: "full", "reload", "incremental", "targeted"
@@ -661,45 +661,6 @@ if version_before != version_after:
     spark.sql(optimize_query)
 
     print(f"OPTIMIZE Completed!")    
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-query = "DESCRIBE DETAIL bronze.steamreviews"
-
-spark.sql(query).show(truncate=False)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-query = "DESCRIBE DETAIL silver.steamreviews"
-
-spark.sql(query).show(truncate=False)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-query = "DESCRIBE DETAIL gold.factreviews"
-
-spark.sql(query).show(truncate=False)
 
 # METADATA ********************
 

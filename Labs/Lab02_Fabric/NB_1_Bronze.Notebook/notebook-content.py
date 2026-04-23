@@ -43,10 +43,9 @@ from pyspark.sql.types import ArrayType
 # MARKDOWN ********************
 
 # ## Parameters
-# - **run_Mode**
-#   - FULL - drops the target table and recreates it entirely
-#   - INCREMENTAL - upsert via change detection
-#   - NONE - debugging purposes only
+# - **load_type**
+#   - full - drops the target table and recreates it entirely
+#   - reload - upsert via change detection
 # 
 # - **maxLimit**
 #   - acts as a hard limit to the # of records. useful for testing. 
@@ -55,7 +54,7 @@ from pyspark.sql.types import ArrayType
 # PARAMETERS CELL ********************
 
 # Parameters
-run_mode = "INCREMENTAL"
+load_type = "reload"
 
 maxLimit = 0
 
@@ -231,14 +230,14 @@ def requestData(endpoint, limit, fields = [], exclude = []):
 
 # CELL ********************
 
-if run_mode == 'NONE':
-    print("SKIP: run_mode is 'NONE'. Skipping all processing.")
+if load_type not in ('full', 'reload')':
+    print("SKIP: Invalid load_type {load_type}.")
     mssparkutils.notebook.exit(json.dumps({"processed_any": False}))
 else:
     total_inserted_rows = 0
     total_updated_rows = 0
     print(f"START: Processing the following endpoints: {table_load}...")
-    print(f'PARAMETERS:\n - run_mode = {run_mode}')
+    print(f'PARAMETERS:\n - load_type = {load_type}')
     print(f' - maxLimit = {maxLimit}') if maxLimit != 0  else ' - no maxLimit set, loading everything'
     
     for current_config in table_configs:
@@ -283,7 +282,7 @@ else:
         # create a temporary view to use in the merge as a source
         df_hashed.createOrReplaceTempView("hashedView")    
 
-        if run_mode == 'FULL':
+        if load_type == 'full':
             # yolo
             print(f"\t\tSTART: Recreating {current_config['target_table']}...")
 
@@ -295,7 +294,7 @@ else:
             total_inserted_rows += inserted_rows
             
             print(f"\t\tEND: {current_config['target_table']} recreated successfully! Total records: {inserted_rows}")
-        else:
+        elif load_type == 'reload':
             # write and execute the merge
             print(f"\t\tSTART: Merging {current_config['target_table']}...")
             
@@ -327,7 +326,7 @@ else:
     print(f"END: Processed endpoints: {table_load}!")
 
     result = {
-        "processed_any": total_inserted_rows > 0 or total_updated_rows > 0 or run_mode == 'FULL',
+        "processed_any": total_inserted_rows > 0 or total_updated_rows > 0 or load_type == 'full',
         "total_inserted": total_inserted_rows,
         "total_updated": total_updated_rows
     }

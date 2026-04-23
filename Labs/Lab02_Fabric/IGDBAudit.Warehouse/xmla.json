@@ -1162,6 +1162,21 @@
                 "value": "Automatic"
               }
             ]
+          },
+          {
+            "name": "is_loaded",
+            "dataType": "boolean",
+            "sourceColumn": "is_loaded",
+            "formatString": "\"TRUE\";\"TRUE\";\"FALSE\"",
+            "sourceProviderType": "bit",
+            "sourceLineageTag": "is_loaded",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
           }
         ],
         "partitions": [
@@ -1746,6 +1761,161 @@
             "source": {
               "type": "entity",
               "entityName": "loadReviews",
+              "expressionSource": "DatabaseQuery",
+              "schemaName": "steam"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "name": "IsTableInBiModel",
+            "value": "False"
+          }
+        ]
+      },
+      {
+        "name": "versionControl(1)",
+        "sourceLineageTag": "[steam].[versionControl]",
+        "columns": [
+          {
+            "name": "table_name",
+            "dataType": "string",
+            "sourceColumn": "table_name",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "table_name",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "run_id",
+            "dataType": "string",
+            "sourceColumn": "run_id",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "run_id",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "change_type",
+            "dataType": "string",
+            "sourceColumn": "change_type",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "change_type",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "commit_version",
+            "dataType": "int64",
+            "sourceColumn": "commit_version",
+            "formatString": "0",
+            "sourceProviderType": "bigint",
+            "sourceLineageTag": "commit_version",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "commit_timestamp",
+            "dataType": "dateTime",
+            "sourceColumn": "commit_timestamp",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "commit_timestamp",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "rows_inserted",
+            "dataType": "int64",
+            "sourceColumn": "rows_inserted",
+            "formatString": "0",
+            "sourceProviderType": "bigint",
+            "sourceLineageTag": "rows_inserted",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "rows_updated",
+            "dataType": "int64",
+            "sourceColumn": "rows_updated",
+            "formatString": "0",
+            "sourceProviderType": "bigint",
+            "sourceLineageTag": "rows_updated",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "latest_source_version",
+            "dataType": "int64",
+            "sourceColumn": "latest_source_version",
+            "formatString": "0",
+            "sourceProviderType": "bigint",
+            "sourceLineageTag": "latest_source_version",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
+            "name": "audit_notes",
+            "dataType": "string",
+            "sourceColumn": "audit_notes",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "audit_notes",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          }
+        ],
+        "partitions": [
+          {
+            "name": "{{Partition_Name}}",
+            "mode": "directLake",
+            "source": {
+              "type": "entity",
+              "entityName": "versionControl",
               "expressionSource": "DatabaseQuery",
               "schemaName": "steam"
             }

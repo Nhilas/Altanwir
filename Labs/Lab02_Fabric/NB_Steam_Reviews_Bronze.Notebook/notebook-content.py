@@ -50,7 +50,7 @@ from pyspark.sql.types import StructType, StructField, StringType, LongType, Int
 
 # # Parameters
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
 environment = "dev"
 load_type = 'initial'
@@ -314,6 +314,7 @@ else:
             set= {
                 "review_json": "s.review_json"
                 , "update_execution_id": "s.execution_id"
+                , "update_run_id": f"'{run_id}'"
             }
         ).whenNotMatchedInsert(
             values = {
@@ -321,6 +322,8 @@ else:
                 , "recommendationid": "s.recommendationid"
                 , "review_json": "s.review_json"
                 , "insert_execution_id": "s.execution_id"
+                , "insert_run_id": f"'{run_id}'"
+                , "update_run_id": "null"                
             }   
         ).execute()
 

@@ -7,9 +7,9 @@
           "notebookId": "d597e5f5-a8e9-8025-4f3a-2032214aa4f7",
           "workspaceId": "00000000-0000-0000-0000-000000000000",
           "parameters": {
-            "run_mode": {
+            "load_type": {
               "value": {
-                "value": "@pipeline().parameters.run_mode",
+                "value": "@pipeline().parameters.load_type",
                 "type": "Expression"
               },
               "type": "string"
@@ -54,9 +54,9 @@
                 "notebookId": "8c122953-ce87-bc4d-4258-f36b6cc8be58",
                 "workspaceId": "00000000-0000-0000-0000-000000000000",
                 "parameters": {
-                  "run_mode": {
+                  "load_type": {
                     "value": {
-                      "value": "@pipeline().parameters.run_mode",
+                      "value": "@pipeline().parameters.load_type",
                       "type": "Expression"
                     },
                     "type": "string"
@@ -73,7 +73,7 @@
               "name": "NB_Silver_Clean",
               "dependsOn": [
                 {
-                  "activity": "Poverty Wait 120s",
+                  "activity": "Trial Wait 120s",
                   "dependencyConditions": [
                     "Succeeded"
                   ]
@@ -83,8 +83,31 @@
             {
               "type": "TridentNotebook",
               "typeProperties": {
-                "notebookId": "62120cd3-415a-9906-4223-2922ac104491",
-                "workspaceId": "00000000-0000-0000-0000-000000000000"
+                "notebookId": "a736097f-c7ea-bf59-4755-ac65c0a7b5b5",
+                "workspaceId": "00000000-0000-0000-0000-000000000000",
+                "parameters": {
+                  "load_type": {
+                    "value": {
+                      "value": "@pipeline().parameters.load_type",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "environment": {
+                    "value": {
+                      "value": "@pipeline().parameters.environment",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  },
+                  "run_id": {
+                    "value": {
+                      "value": "@pipeline().RunId",
+                      "type": "Expression"
+                    },
+                    "type": "string"
+                  }
+                }
               },
               "policy": {
                 "timeout": "0.12:00:00",
@@ -93,10 +116,10 @@
                 "secureInput": false,
                 "secureOutput": false
               },
-              "name": "NB_Gold_Analyze",
+              "name": "NB_Gold_Game_Scores",
               "dependsOn": [
                 {
-                  "activity": "Poverty Wait2 120s",
+                  "activity": "Trial Wait2 120s",
                   "dependencyConditions": [
                     "Succeeded"
                   ]
@@ -108,7 +131,7 @@
               "typeProperties": {
                 "waitTimeInSeconds": 120
               },
-              "name": "Poverty Wait 120s",
+              "name": "Trial Wait 120s",
               "description": "Wait 2 minutes to give the previous cluster time to close because my trial capacity only lets me play with one cluster at a time =')",
               "dependsOn": []
             },
@@ -117,7 +140,7 @@
               "typeProperties": {
                 "waitTimeInSeconds": 120
               },
-              "name": "Poverty Wait2 120s",
+              "name": "Trial Wait2 120s",
               "description": "Wait 2 minutes to give the previous cluster time to close because my trial capacity only lets me play with one cluster at a time =')",
               "dependsOn": [
                 {
@@ -143,13 +166,9 @@
       }
     ],
     "parameters": {
-      "retryCounter": {
-        "type": "int",
-        "defaultValue": 0
-      },
-      "run_mode": {
+      "load_type": {
         "type": "string",
-        "defaultValue": "FULL"
+        "defaultValue": "reload"
       },
       "table_load": {
         "type": "string",
@@ -166,6 +185,10 @@
       "max_limit": {
         "type": "int",
         "defaultValue": 0
+      },
+      "environment": {
+        "type": "string",
+        "defaultValue": "prod"
       }
     }
   }

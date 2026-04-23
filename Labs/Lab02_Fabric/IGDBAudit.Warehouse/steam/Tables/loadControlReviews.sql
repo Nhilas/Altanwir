@@ -12,5 +12,6 @@ CREATE TABLE [steam].[loadControlReviews] (
 	[first_retrieved_timestamp] bigint NULL, 
 	[last_retrieved_timestamp] bigint NULL, 
 	[last_retrieved_cursor] varchar(30) NULL, 
-	[output_path] varchar(max) NULL
+	[output_path] varchar(max) NULL, 
+	[is_loaded] bit NULL
 );

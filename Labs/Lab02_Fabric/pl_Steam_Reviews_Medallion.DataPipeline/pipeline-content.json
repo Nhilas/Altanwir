@@ -1,0 +1,291 @@
+{
+  "properties": {
+    "activities": [
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "1876aa88-2074-a0a9-4e61-b365fc8860e3",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "environment": {
+              "value": {
+                "value": "@pipeline().parameters.environment",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "load_type": {
+              "value": {
+                "value": "@pipeline().parameters.bronze_load_type",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "run_id": {
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "NB_Bronze_Reviews",
+        "dependsOn": []
+      },
+      {
+        "type": "Wait",
+        "typeProperties": {
+          "waitTimeInSeconds": 120
+        },
+        "name": "Trial Wait 120s",
+        "description": "Wait 2 minutes to give the previous cluster time to close because my trial capacity only lets me play with one cluster at a time =')",
+        "dependsOn": [
+          {
+            "activity": "NB_Bronze_Reviews",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "c96d0c15-8f41-a157-4879-41a501c6a72f",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "environment": {
+              "value": {
+                "value": "@pipeline().parameters.environment",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "load_type": {
+              "value": {
+                "value": "@pipeline().parameters.pl_load_type",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "run_id": {
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "targeted_reload": {
+              "value": {
+                "value": "@pipeline().parameters.targeted_reload",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "NB_Silver_Reviews",
+        "dependsOn": [
+          {
+            "activity": "Trial Wait 120s",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Wait",
+        "typeProperties": {
+          "waitTimeInSeconds": 120
+        },
+        "name": "Trial Wait2 120s",
+        "description": "Wait 2 minutes to give the previous cluster time to close because my trial capacity only lets me play with one cluster at a time =')",
+        "dependsOn": [
+          {
+            "activity": "NB_Silver_Reviews",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "021de1b2-87bb-babd-4a1f-06f49d9dcd68",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "environment": {
+              "value": {
+                "value": "@pipeline().parameters.environment",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "load_type": {
+              "value": {
+                "value": "@pipeline().parameters.pl_load_type",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "run_id": {
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "gold_reviews_salt_threshold": {
+              "value": {
+                "value": "@pipeline().parameters.gold_reviews_salt_threshold",
+                "type": "Expression"
+              },
+              "type": "int"
+            },
+            "gold_reviews_salt_factor": {
+              "value": {
+                "value": "@pipeline().parameters.gold_reviews_salt_factor",
+                "type": "Expression"
+              },
+              "type": "int"
+            },
+            "targeted_reload": {
+              "value": {
+                "value": "@pipeline().parameters.targeted_reload",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "NB_Gold_Reviews",
+        "dependsOn": [
+          {
+            "activity": "Trial Wait2 120s",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Wait",
+        "typeProperties": {
+          "waitTimeInSeconds": 120
+        },
+        "name": "Trial Wait3 120s",
+        "description": "Wait 2 minutes to give the previous cluster time to close because my trial capacity only lets me play with one cluster at a time =')",
+        "dependsOn": [
+          {
+            "activity": "NB_Gold_Reviews",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "a736097f-c7ea-bf59-4755-ac65c0a7b5b5",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "environment": {
+              "value": {
+                "value": "@pipeline().parameters.environment",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "load_type": {
+              "value": {
+                "value": "@pipeline().parameters.pl_load_type",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "run_id": {
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "targeted_reload": {
+              "value": {
+                "value": "@pipeline().parameters.targeted_reload",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "NB_Gold_Game_Scores",
+        "dependsOn": [
+          {
+            "activity": "Trial Wait3 120s",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "environment": {
+        "type": "string",
+        "defaultValue": "prod"
+      },
+      "bronze_load_type": {
+        "type": "string",
+        "defaultValue": "initial"
+      },
+      "pl_load_type": {
+        "type": "string",
+        "defaultValue": "reload"
+      },
+      "targeted_reload": {
+        "type": "string"
+      },
+      "gold_reviews_salt_threshold": {
+        "type": "int",
+        "defaultValue": 50000
+      },
+      "gold_reviews_salt_factor": {
+        "type": "int",
+        "defaultValue": 32
+      }
+    }
+  }
+}

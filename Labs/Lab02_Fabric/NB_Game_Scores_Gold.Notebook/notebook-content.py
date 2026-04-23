@@ -48,7 +48,7 @@ from delta.tables import DeltaTable
 
 # # Parameters
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
 environment = "dev"
 load_type = "reload"   # valid options: "full", "reload", "targeted"

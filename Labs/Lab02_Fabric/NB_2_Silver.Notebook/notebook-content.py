@@ -62,16 +62,13 @@ silverPlatforms_path = "abfss://Altanwir@onelake.dfs.fabric.microsoft.com/IGDBAn
 # MARKDOWN ********************
 
 # ## Parameters
-# - **run_Mode**
-#   - FULL - drops the target table and recreates it entirely
-#   - INCREMENTAL - upsert via change detection
-
-# MARKDOWN ********************
-
+# - **load_type**
+#   - full - drops the target table and recreates it entirely
+#   - reload - upsert via change detection
 
 # PARAMETERS CELL ********************
 
-run_mode = "INCREMENTAL" # FULL or INCREMENTAL
+load_type = "reload" # full or reload
 
 # METADATA ********************
 
@@ -162,7 +159,7 @@ spark.sql("USE spark_catalog.silver")
 # recreate the table if run mode is full
 ## or create it if it doesn't exist
 ## or merge into it if it does exist
-if (run_mode == "FULL"):
+if (load_type == "full"):
     spark.sql("drop table if exists silver.games")
     df_hashed.write.format("delta").saveAsTable("silver.games")    
 elif (spark.catalog.tableExists("silver.games")):
@@ -231,7 +228,7 @@ df_cleaned = df_filtered \
 
 spark.sql("USE spark_catalog.silver")
 
-if (run_mode == "FULL"):
+if (load_type == "full"):
     spark.sql("drop table if exists silver.genres")
     df_cleaned.write.format("delta").saveAsTable("silver.genres")    
 elif (spark.catalog.tableExists("silver.genres")):
@@ -295,7 +292,7 @@ df_cleaned = df_filtered \
 
 spark.sql("USE spark_catalog.silver")
 
-if (run_mode == "FULL"):
+if (load_type == "full"):
     spark.sql("drop table if exists silver.themes")
     df_cleaned.write.format("delta").saveAsTable("silver.themes")    
 elif (spark.catalog.tableExists("silver.themes")):
@@ -392,7 +389,7 @@ df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for 
 
 spark.sql("USE spark_catalog.silver")
 
-if (run_mode == "FULL"):
+if (load_type == "full"):
     spark.sql("drop table if exists silver.platforms")
     df_hashed.write.format("delta").saveAsTable("silver.platforms")    
 elif (spark.catalog.tableExists("silver.platforms")):
@@ -521,7 +518,7 @@ df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for 
 
 spark.sql("USE spark_catalog.silver")
 
-if (run_mode == "FULL"):
+if (load_type == "full"):
     spark.sql("drop table if exists silver.externalGames")
     df_hashed.write.format("delta").saveAsTable("silver.externalGames")    
 elif (spark.catalog.tableExists("silver.externalGames")):

@@ -54,7 +54,7 @@ import pyodbc
 
 # CELL ********************
 
-environment = "dev"
+environment = "prod"
 
 lakehouse_name = "IGDBAnalytics" if environment == "prod" else "IGDBAnalytics_Dev"
 audit_schema = "dev" if environment == "dev" else "steam"
@@ -95,6 +95,8 @@ create table if not exists {lakehouse_name}.bronze.steamReviews (
     , review_json STRING
     , insert_execution_id STRING
     , update_execution_id STRING
+    , insert_run_id STRING
+    , update_run_id STRING
 )
 USING DELTA
 CLUSTER BY (recommendationid)
@@ -386,6 +388,7 @@ create table if not exists {audit_schema}.loadControlReviews (
     , last_retrieved_timestamp BIGINT
     , last_retrieved_cursor STRING
     , output_path STRING
+    , is_loaded BIT NOT NULL
 )
 """
 

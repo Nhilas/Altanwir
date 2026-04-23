@@ -142,7 +142,7 @@ df_cleaned = df_filtered \
 
 columns_to_hash = [c for c in df_cleaned.columns if c != 'gameKey']
 
-df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
+df_hashed = df_cleaned.withColumn("hash", f.sha2(f.concat_ws("|", *[f.col(c) for c in columns_to_hash]), 256))
 
 
 # METADATA ********************
@@ -154,30 +154,31 @@ df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for 
 
 # CELL ********************
 
-spark.sql("USE spark_catalog.silver")
-
 # recreate the table if run mode is full
 ## or create it if it doesn't exist
 ## or merge into it if it does exist
-if (load_type == "full"):
+if load_type == "full":
     spark.sql("drop table if exists silver.games")
-    df_hashed.write.format("delta").saveAsTable("silver.games")    
-elif (spark.catalog.tableExists("silver.games")):
-    df_hashed.write.format("delta").saveAsTable("silver.games")
-else:    
-    # 1. Define the target table
-    targetTable = DeltaTable.forName(spark, "silver.games")
+    df_hashed.write.mode("overwrite").format("delta").saveAsTable("silver.games")    
+elif load_type == "reload":
+    if not spark.catalog.tableExists("silver.games"):
+        df_hashed.write.option("overwriteSchema", "true").mode("overwrite").format("delta").saveAsTable("silver.games")
+    else:    
+        # 1. Define the target table
+        targetTable = DeltaTable.forName(spark, "silver.games")
 
-    # 2. Execute Merge
-    targetTable.alias("t").merge(
-        source = df_hashed.alias("s"),
-        condition = "t.gameKey = s.gameKey"
-    ).whenMatchedUpdateAll(
-        # Optional: Only update if the content actually changed (using your hash column)
-        condition = "t.hash != s.hash"
-    ).whenNotMatchedInsertAll(
-        # Inserts all columns from source to target
-    ).execute()
+        # 2. Execute Merge
+        targetTable.alias("t").merge(
+            source = df_hashed.alias("s"),
+            condition = "t.gameKey = s.gameKey"
+        ).whenMatchedUpdateAll(
+            # Optional: Only update if the content actually changed (using your hash column)
+            condition = "t.hash != s.hash"
+        ).whenNotMatchedInsertAll(
+            # Inserts all columns from source to target
+        ).execute()
+else:
+    print(f"Unknown load_type '{load_type}'. Expected 'full' or 'reload'. Exiting.")
 
 
 # METADATA ********************
@@ -226,24 +227,24 @@ df_cleaned = df_filtered \
 
 # CELL ********************
 
-spark.sql("USE spark_catalog.silver")
-
-if (load_type == "full"):
+if load_type == "full":
     spark.sql("drop table if exists silver.genres")
-    df_cleaned.write.format("delta").saveAsTable("silver.genres")    
-elif (spark.catalog.tableExists("silver.genres")):
-    df_cleaned.write.format("delta").saveAsTable("silver.genres")
-else:    
-    targetTable = DeltaTable.forName(spark, "silver.genres")
+    df_cleaned.write.mode("overwrite").format("delta").saveAsTable("silver.genres")    
+elif load_type == "reload":
+    if not spark.catalog.tableExists("silver.genres"):
+        df_cleaned.write.option("overwriteSchema", "true").mode("overwrite").format("delta").saveAsTable("silver.genres")
+    else:
+        targetTable = DeltaTable.forName(spark, "silver.genres")
 
-    targetTable.alias("t").merge(
-        source = df_cleaned.alias("s"),
-        condition = "t.genreKey = s.genreKey"
-    ).whenMatchedUpdateAll(
-        condition = "t.genreName != s.genreName"
-    ).whenNotMatchedInsertAll(
-    ).execute()
-
+        targetTable.alias("t").merge(
+            source = df_cleaned.alias("s"),
+            condition = "t.genreKey = s.genreKey"
+        ).whenMatchedUpdateAll(
+            condition = "t.genreName != s.genreName"
+        ).whenNotMatchedInsertAll(
+        ).execute()
+else:
+    print(f"Unknown load_type '{load_type}'. Expected 'full' or 'reload'. Exiting.")
 
 # METADATA ********************
 
@@ -290,24 +291,24 @@ df_cleaned = df_filtered \
 
 # CELL ********************
 
-spark.sql("USE spark_catalog.silver")
-
-if (load_type == "full"):
+if load_type == "full":
     spark.sql("drop table if exists silver.themes")
-    df_cleaned.write.format("delta").saveAsTable("silver.themes")    
-elif (spark.catalog.tableExists("silver.themes")):
-    df_cleaned.write.format("delta").saveAsTable("silver.themes")
-else:    
-    targetTable = DeltaTable.forName(spark, "silver.themes")
+    df_cleaned.write.mode("overwrite").format("delta").saveAsTable("silver.themes")    
+elif load_type == "reload":
+    if not spark.catalog.tableExists("silver.themes"):
+        df_cleaned.write.option("overwriteSchema", "true").mode("overwrite").format("delta").saveAsTable("silver.themes")
+    else:
+        targetTable = DeltaTable.forName(spark, "silver.themes")
 
-    targetTable.alias("t").merge(
-        source = df_cleaned.alias("s"),
-        condition = "t.themeKey = s.themeKey"
-    ).whenMatchedUpdateAll(
-        condition = "t.themeName != s.themeName"
-    ).whenNotMatchedInsertAll(
-    ).execute()
-
+        targetTable.alias("t").merge(
+            source = df_cleaned.alias("s"),
+            condition = "t.themeKey = s.themeKey"
+        ).whenMatchedUpdateAll(
+            condition = "t.themeName != s.themeName"
+        ).whenNotMatchedInsertAll(
+        ).execute()
+else:
+    print(f"Unknown load_type '{load_type}'. Expected 'full' or 'reload'. Exiting.")
 
 # METADATA ********************
 
@@ -376,7 +377,7 @@ df_cleaned = df_cleaned1.alias("pl") \
 
 columns_to_hash = [c for c in df_cleaned.columns if c != 'platformKey']
 
-df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
+df_hashed = df_cleaned.withColumn("hash", f.sha2(f.concat_ws("|", *[f.col(c) for c in columns_to_hash]), 256))
 
 # METADATA ********************
 
@@ -387,24 +388,24 @@ df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for 
 
 # CELL ********************
 
-spark.sql("USE spark_catalog.silver")
-
-if (load_type == "full"):
+if load_type == "full":
     spark.sql("drop table if exists silver.platforms")
-    df_hashed.write.format("delta").saveAsTable("silver.platforms")    
-elif (spark.catalog.tableExists("silver.platforms")):
-    df_hashed.write.format("delta").saveAsTable("silver.platforms")
-else:    
-    targetTable = DeltaTable.forName(spark, "silver.platforms")
+    df_hashed.write.mode("overwrite").format("delta").saveAsTable("silver.platforms")    
+elif load_type == "reload":
+    if not spark.catalog.tableExists("silver.platforms"):
+        df_hashed.write.option("overwriteSchema", "true").mode("overwrite").format("delta").saveAsTable("silver.platforms")
+    else:
+        targetTable = DeltaTable.forName(spark, "silver.platforms")
 
-    targetTable.alias("t").merge(
-        source = df_hashed.alias("s"),
-        condition = "t.platformKey = s.platformKey"
-    ).whenMatchedUpdateAll(
-        condition = "t.hash != s.hash"
-    ).whenNotMatchedInsertAll(
-    ).execute()
-
+        targetTable.alias("t").merge(
+            source = df_hashed.alias("s"),
+            condition = "t.platformKey = s.platformKey"
+        ).whenMatchedUpdateAll(
+            condition = "t.hash != s.hash"
+        ).whenNotMatchedInsertAll(
+        ).execute()
+else:
+    print(f"Unknown load_type '{load_type}'. Expected 'full' or 'reload'. Exiting.")
 
 # METADATA ********************
 
@@ -505,7 +506,7 @@ df_cleaned = df_cleaned1.alias("eg") \
 
 columns_to_hash = [c for c in df_cleaned.columns if c != 'egKey']
 
-df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for c in columns_to_hash])))
+df_hashed = df_cleaned.withColumn("hash", f.sha2(f.concat_ws("|", *[f.col(c) for c in columns_to_hash]), 256))
 
 # METADATA ********************
 
@@ -516,24 +517,24 @@ df_hashed = df_cleaned.withColumn("hash", f.md5(f.concat_ws(",", *[f.col(c) for 
 
 # CELL ********************
 
-spark.sql("USE spark_catalog.silver")
+if load_type == "full":
+    spark.sql("drop table if exists silver.externalgames")
+    df_hashed.write.mode("overwrite").format("delta").saveAsTable("silver.externalgames")    
+elif load_type == "reload":
+    if not spark.catalog.tableExists("silver.externalgames"):
+        df_hashed.write.option("overwriteSchema", "true").mode("overwrite").format("delta").saveAsTable("silver.externalgames")
+    else:
+        targetTable = DeltaTable.forName(spark, "silver.externalgames")
 
-if (load_type == "full"):
-    spark.sql("drop table if exists silver.externalGames")
-    df_hashed.write.format("delta").saveAsTable("silver.externalGames")    
-elif (spark.catalog.tableExists("silver.externalGames")):
-    df_hashed.write.format("delta").saveAsTable("silver.externalGames")
-else:    
-    targetTable = DeltaTable.forName(spark, "silver.externalGames")
-
-    targetTable.alias("t").merge(
-        source = df_hashed.alias("s"),
-        condition = "t.platformId = s.platformId"
-    ).whenMatchedUpdateAll(
-        condition = "t.hash != s.hash"
-    ).whenNotMatchedInsertAll(
-    ).execute()
-
+        targetTable.alias("t").merge(
+            source = df_hashed.alias("s"),
+            condition = "t.platformId = s.platformId"
+        ).whenMatchedUpdateAll(
+            condition = "t.hash != s.hash"
+        ).whenNotMatchedInsertAll(
+        ).execute()
+else:
+    print(f"Unknown load_type '{load_type}'. Expected 'full' or 'reload'. Exiting.")
 
 # METADATA ********************
 
@@ -547,8 +548,6 @@ else:
 # # Bridge Table Creation
 
 # CELL ********************
-
-spark.sql("USE spark_catalog.silver")
 
 # Genres
 df_explodedGenres = df_silverGames.alias("g") \

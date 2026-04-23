@@ -58,9 +58,9 @@ load_type = "reload"
 
 maxLimit = 0
 
-# a list containing the tables to be loaded
-# table_load = ["games", "genres", "themes", "platforms", "platform_types", "external_games", "external_game_sources"]
-table_load = ["platform_types"]
+# a string with the tables to be loaded, separated by ', '
+# table_load = "games, genres, themes, platforms, platform_types, external_games, external_game_sources"
+table_load = "platform_types"
 
 # Yes bad practice I'm aware
 headers = {
@@ -230,7 +230,7 @@ def requestData(endpoint, limit, fields = [], exclude = []):
 
 # CELL ********************
 
-if load_type not in ('full', 'reload')':
+if load_type not in ('full', 'reload'):
     print("SKIP: Invalid load_type {load_type}.")
     mssparkutils.notebook.exit(json.dumps({"processed_any": False}))
 else:

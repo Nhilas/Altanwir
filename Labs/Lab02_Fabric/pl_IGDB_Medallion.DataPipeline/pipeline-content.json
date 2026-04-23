@@ -172,15 +172,7 @@
       },
       "table_load": {
         "type": "string",
-        "defaultValue": [
-          "games",
-          "genres",
-          "themes",
-          "platforms",
-          "platform_types",
-          "external_games",
-          "external_game_sources"
-        ]
+        "defaultValue": "games, genres, themes, platforms, platform_types, external_games, external_game_sources"
       },
       "max_limit": {
         "type": "int",

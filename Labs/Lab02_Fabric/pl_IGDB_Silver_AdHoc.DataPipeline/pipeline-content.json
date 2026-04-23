@@ -1,0 +1,105 @@
+{
+  "properties": {
+    "activities": [
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "8c122953-ce87-bc4d-4258-f36b6cc8be58",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "load_type": {
+              "value": {
+                "value": "@pipeline().parameters.silver_load_type",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "NB_2_Silver",
+        "dependsOn": []
+      },
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "a736097f-c7ea-bf59-4755-ac65c0a7b5b5",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "load_type": {
+              "value": {
+                "value": "@pipeline().parameters.game_scores_load_type",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "environment": {
+              "value": {
+                "value": "@pipeline().parameters.environment",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "run_id": {
+              "value": {
+                "value": "@pipeline().RunId",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 0,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "NB_Gold_Scores",
+        "dependsOn": [
+          {
+            "activity": "Trial Wait 120s",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Wait",
+        "typeProperties": {
+          "waitTimeInSeconds": 120
+        },
+        "name": "Trial Wait 120s",
+        "dependsOn": [
+          {
+            "activity": "NB_2_Silver",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ]
+      }
+    ],
+    "parameters": {
+      "silver_load_type": {
+        "type": "string",
+        "defaultValue": "full"
+      },
+      "environment": {
+        "type": "string",
+        "defaultValue": "prod"
+      },
+      "game_scores_load_type": {
+        "type": "string",
+        "defaultValue": "reload"
+      }
+    }
+  }
+}

@@ -1,4 +1,4 @@
--- Auto Generated (Do not modify) 48423D9ABB762ED62DAF509BE5D7EDB0F04FA3FBE4EF4A1D3C1B012A2C78FA05
+-- Auto Generated (Do not modify) F13662BB98EFD3ED48BC0491E70BFF14F4932AA67D88C53941B00B165DB51EAD
 
 
 create view steam.loadReviews as
@@ -20,6 +20,15 @@ with ordered_executions as (
         from steam.loadControlReviews
         where execution_status = 'success'
     )
+
+, top_water_marks as (
+        select 
+            app_id
+            , max(first_retrieved_timestamp) as top_retrieved_timestamp
+        from steam.loadControlReviews
+        where execution_status = 'success'
+        group by app_id
+    )    
 
 select
     o.app_id
@@ -44,15 +53,18 @@ select
     , cast(dateadd(second, e.first_retrieved_timestamp, '1970-01-01') as datetime2) as first_review_on
     , cast(dateadd(second, e.last_retrieved_timestamp, '1970-01-01') as datetime2) as last_review_on
     , e.output_path
-    , s.first_retrieved_timestamp as high_water_mark
-    , case                                              -- expected behaviour: use the cursor from the last successful execution if the load is marked as failed or empty
-        when o.load_status in ('empty', 'failed', 'retry') and (e.last_retrieved_cursor is null or e.last_retrieved_cursor = '*' )
+    , twm.top_retrieved_timestamp as high_water_mark
+    , cast(dateadd(second, twm.top_retrieved_timestamp, '1970-01-01') as datetime2) as high_water_mark_date
+    , case                                              -- expected behaviour: use the cursor from the last successful execution if the load is marked as failed or empty but the last saved cursor is '*'
+        when o.load_status in ('empty', 'failed', 'retry') and (e.last_retrieved_cursor is null or e.last_retrieved_cursor = '*' ) and s.last_retrieved_cursor is not null
             then s.last_retrieved_cursor
         when o.load_status in ('completed', 'pending')  -- expected behaviour: if the load is completed or it hasn't started yet, make sure the cursor used will be '*'
             then '*'
         else coalesce(e.last_retrieved_cursor, '*')     -- if there is no valid cursor from either the last run, or the last succssful run, use '*'
     end as last_retrieved_cursor
 from steam.loadOrchestratorReviews as o
+left join top_water_marks as twm
+    on o.app_id = twm.app_id  
 left join ordered_executions as e
     on o.app_id = e.app_id
     and o.load_type = e.execution_type

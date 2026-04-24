@@ -794,6 +794,21 @@
                 "value": "Automatic"
               }
             ]
+          },
+          {
+            "name": "high_water_mark_date",
+            "dataType": "dateTime",
+            "sourceColumn": "high_water_mark_date",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "high_water_mark_date",
+            "summarizeBy": "none",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
           }
         ],
         "partitions": [
@@ -1550,6 +1565,21 @@
             ]
           },
           {
+            "name": "priority_order",
+            "dataType": "int64",
+            "sourceColumn": "priority_order",
+            "formatString": "0",
+            "sourceProviderType": "int",
+            "sourceLineageTag": "priority_order",
+            "summarizeBy": "sum",
+            "annotations": [
+              {
+                "name": "SummarizationSetBy",
+                "value": "Automatic"
+              }
+            ]
+          },
+          {
             "name": "load_status",
             "dataType": "string",
             "sourceColumn": "load_status",
@@ -1725,11 +1755,12 @@
             ]
           },
           {
-            "name": "last_retrieved_cursor",
-            "dataType": "string",
-            "sourceColumn": "last_retrieved_cursor",
-            "sourceProviderType": "varchar",
-            "sourceLineageTag": "last_retrieved_cursor",
+            "name": "high_water_mark_date",
+            "dataType": "dateTime",
+            "sourceColumn": "high_water_mark_date",
+            "formatString": "General Date",
+            "sourceProviderType": "datetime2",
+            "sourceLineageTag": "high_water_mark_date",
             "summarizeBy": "none",
             "annotations": [
               {
@@ -1739,13 +1770,12 @@
             ]
           },
           {
-            "name": "priority_order",
-            "dataType": "int64",
-            "sourceColumn": "priority_order",
-            "formatString": "0",
-            "sourceProviderType": "int",
-            "sourceLineageTag": "priority_order",
-            "summarizeBy": "sum",
+            "name": "last_retrieved_cursor",
+            "dataType": "string",
+            "sourceColumn": "last_retrieved_cursor",
+            "sourceProviderType": "varchar",
+            "sourceLineageTag": "last_retrieved_cursor",
+            "summarizeBy": "none",
             "annotations": [
               {
                 "name": "SummarizationSetBy",

@@ -55,6 +55,13 @@
                 "type": "Expression"
               },
               "type": "string"
+            },
+            "environment": {
+              "value": {
+                "value": "@pipeline().parameters.environment",
+                "type": "Expression"
+              },
+              "type": "string"
             }
           }
         },
@@ -92,6 +99,10 @@
       },
       "targeted_reload": {
         "type": "string"
+      },
+      "environment": {
+        "type": "string",
+        "defaultValue": "prod"
       }
     },
     "concurrency": 1

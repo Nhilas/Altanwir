@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "pl_Steam_Reviews_Medallion_Incremental"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "bc223462-758e-b87d-482b-1d26cbfda28a"
+  }
+}

@@ -51,7 +51,7 @@ from delta.tables import DeltaTable
 # PARAMETERS CELL ********************
 
 environment = "dev"
-load_type = "reload"   # valid options: "full", "reload", "incremental", "targeted"
+load_type = "incremental"   # valid options: "full", "reload", "incremental", "targeted"
 run_id = "gold_enhancement_04"
 
 # threshold for salting; 9999999 effectively turns off salting. if a game ever gets 10 million reviews we have bigger problems anyway. lol
@@ -298,12 +298,27 @@ elif load_type == 'incremental':
     elif current_source_version == latest_source_version:
         print(f"No new version found for {source_path}. Latest version in audit: {latest_source_version}, current version in source: {current_source_version}. Shutting down.")
         notebookutils.notebook.exit("No new version to process")
+        
     else:
-        from_clause = f"{source_path}\n\twhere gameKey in ( select distinct gameKey from table_changes('{source_path}', {latest_source_version+1}) )"
+        cdf_query = f"""
+            select distinct gameKey 
+            from table_changes('{source_path}', {latest_source_version+1}) 
+            where _change_type in ('insert', 'update_postimage')
+        """
+        changed_games = spark.sql(cdf_query).collect()
+
+        gameKeys = [row.gameKey for row in changed_games]
+        sep = "', '"
+        predicate = f"'{sep.join(gameKeys)}'"
+
+        print(f"Found {len(gameKeys)} games with new or updated reviews in {source_path}")
+        from_clause = f"{source_path}\n\twhere gameKey in ({predicate})"
+
 elif load_type == 'targeted' and targeted_reload:
     sep = "', '"
     gameKey_predicate = f"'{sep.join(targeted_reload)}'"
     from_clause = f"{source_path}\n\twhere gameKey in ({gameKey_predicate})"
+
 else:
     print(f"Invalid load_type: {load_type}! Shutting down")
     notebookutils.notebook.exit("Wrong load_type")
@@ -319,7 +334,6 @@ else:
 
 hot_keys_rows = spark.sql(f"select gameKey, count(*) as reviewCount from {from_clause} group by gameKey having reviewCount > {hot_key_threshold}").collect()
 hot_keys = [row['gameKey'] for row in hot_keys_rows]
-print(f"Identified {len(hot_keys)} games with more than {hot_key_threshold} reviews. These keys will be salted to optimize aggregation performance.")
 
 raw_query = f"""
 select
@@ -640,27 +654,6 @@ if version_before == version_after:
 else:
     current_source_version = source_table.history(1).collect()[0][0]
     insert_version(audit_row=audit_row, latest_source_version=current_source_version)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# MARKDOWN ********************
-
-# ## Optimize
-
-# CELL ********************
-
-if version_before != version_after:
-    print(f"OPTIMIZE {target_path} to cluster new additions...")
-
-    optimize_query = f"OPTIMIZE {target_path}"
-    spark.sql(optimize_query)
-
-    print(f"OPTIMIZE Completed!")    
 
 # METADATA ********************
 

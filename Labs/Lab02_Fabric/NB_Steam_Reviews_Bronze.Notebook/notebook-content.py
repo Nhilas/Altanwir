@@ -37,6 +37,7 @@ import json
 from delta.tables import DeltaTable
 from pyspark.sql import functions as f
 from pyspark.sql import Row
+from pyspark.sql.window import Window
 from pyspark.sql.types import StructType, StructField, StringType, LongType, IntegerType
 
 # METADATA ********************
@@ -53,8 +54,13 @@ from pyspark.sql.types import StructType, StructField, StringType, LongType, Int
 # PARAMETERS CELL ********************
 
 environment = "dev"
-load_type = 'initial'
-run_id = 'devIncrementalAndAudit1'
+load_type = 'targeted'   # valid options: "full", "reload", "incremental", "targeted"
+run_id = 'dev_targeted_1'
+
+# format this as a list of string app_ids. only used if load_type = 'targeted', otherwise it's ignored. only accepts app_ids. example: ['271590', '292030', '45770']
+targeted_reload = ['271590', '292030', '45770']
+
+update_batch_size = 250
 
 # METADATA ********************
 
@@ -93,6 +99,8 @@ target_table = DeltaTable.forName(spark, target_path)
 
 audit_server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
 audit_database = 'IGDBAudit'
+
+deduplicateBy = Window.partitionBy("app_id", "steamid").orderBy(f.col("timestamp_updated").desc())
 
 # METADATA ********************
 
@@ -153,31 +161,40 @@ def connect_audit_wh():
 def update_audit (executions_list=[]):
     if not executions_list:
         return
-
-    placeholders = ", ".join(["?"] * len(executions_list))
-
-    update_query = f"""
-        update {audit_schema}.loadControlReviews
-        set is_loaded = 1
-            where execution_id in ({placeholders})
-    """
-
-    print(f"Updating {audit_schema}.loadControlReviews...")
+    
+    max_batch = len(executions_list)
 
     conn = connect_audit_wh()
     db_cursor = conn.cursor()
 
     try:
-        db_cursor.execute(update_query, executions_list)
-        conn.commit()
+        for batch in range(0, max_batch, update_batch_size):
+        
+            batch_executions = executions_list[batch:batch+update_batch_size]
+            placeholders = ", ".join(["?"] * len(batch_executions))
+
+            update_query = f"""
+                update {audit_schema}.loadControlReviews
+                set is_loaded = 1
+                    where execution_id in ({placeholders})
+            """
+
+            print(f"Updating {audit_schema}.loadControlReviews for batch {batch+1} of {max_batch//update_batch_size+1}...")
+
+            db_cursor.execute(update_query, batch_executions)
+            conn.commit()
+
+            print(f"Batch updated successfully.")
     except Exception as e:
-        print(f"Failed to update audit: {e}")
         conn.rollback()
+        print(f"Failed to update audit for batch {batch+1} of {max_batch//update_batch_size+1}: {e}")
+        raise
     else:
-        print(f"Successfully marked {len(executions_list)} executions as loaded in {audit_schema}.loadControlReviews")
+        print(f"Successfully marked {max_batch} executions as loaded in {audit_schema}.loadControlReviews")
     finally:
         db_cursor.close()
         conn.close()
+
 
 # METADATA ********************
 
@@ -251,6 +268,21 @@ def insert_version(audit_row):
 
 # CELL ********************
 
+if load_type in ('full', 'reload'):
+    where_clause = "where retrieved_reviews > 0"
+
+elif load_type == 'incremental':
+    where_clause = "where execution_type = 'incremental' and is_loaded = 0 and retrieved_reviews > 0"
+
+elif load_type == 'targeted' and targeted_reload:
+    sep = "', '"
+    gameKey_predicate = f"'{sep.join(targeted_reload)}'"    
+    where_clause = f"where app_id in ({gameKey_predicate}) and retrieved_reviews > 0"
+
+else:
+    print(f"Invalid load_type: {load_type}! Shutting down")
+    notebookutils.notebook.exit("Wrong load_type")
+
 conn = connect_audit_wh()
 db_cursor = conn.cursor()
 select_query = f"""
@@ -260,9 +292,7 @@ select_query = f"""
         , output_path as output_path
         , retrieved_reviews
     from {audit_schema}.loadControlReviews
-    where execution_type = '{load_type}'
-        and is_loaded = 0
-        and retrieved_reviews > 0
+    {where_clause}
 """
 
 db_cursor.execute(select_query)
@@ -272,6 +302,32 @@ conn.close()
 
 print(f"{len(games_list)} valid executions found in {audit_schema}.loadControlReviews. Query used:")
 print(select_query)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+if load_type == "full":
+    print(f"Load type is '{load_type}', truncating table {target_path}...")    
+
+    truncate_query = f"truncate table {target_path}"
+    spark.sql(truncate_query)
+
+    print("Truncate completed")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
 
 if len(games_list) == 0:
     print(f"No execution_ids marked unloaded in {audit_schema}.loadControlReviews. Execution halted")
@@ -299,15 +355,21 @@ else:
         # prepare relevant fields for the source: format review as json, extract execution_id from the path name and extract the recommendationid
         df_processed = df_raw.withColumn("review_json", f.to_json(f.struct("*"))) \
             .withColumn("execution_id", f.element_at(f.split(f.input_file_name(), "/"),-2))
-        df_reviews = df_processed.select("execution_id", "recommendationid", "review_json")
+        df_reviews = df_processed.selectExpr("execution_id", "recommendationid", "author.steamid as steamid", "timestamp_updated", "review_json")
+
         df_joined = df_reviews.join(f.broadcast(df_interm), "execution_id", "inner" )
+
+        # deduplicate by app_id and steamid, keeping the most recent review based on the timestamp_updated field
+        df_deduplicated = df_joined.withColumn("row_number", f.row_number().over(deduplicateBy)) \
+            .filter(f.col("row_number") == 1) \
+            .drop("row_number", "steamid", "timestamp_updated")
 
         # merge
         version_before = target_table.history(1).collect()[0][0]
         print(f"Merge target: {target_path}. Executing merge...")
 
         target_table.alias("t").merge(
-            df_joined.alias("s")
+            df_deduplicated.alias("s")
             , 't.recommendationid = s.recommendationid'
         ).whenMatchedUpdate(
             condition = "t.review_json != s.review_json",

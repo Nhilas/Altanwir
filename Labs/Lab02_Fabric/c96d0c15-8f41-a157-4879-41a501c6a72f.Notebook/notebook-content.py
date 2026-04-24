@@ -736,24 +736,3 @@ else:
 # META   "language": "python",
 # META   "language_group": "synapse_pyspark"
 # META }
-
-# MARKDOWN ********************
-
-# ## Optimize
-
-# CELL ********************
-
-if version_before != version_after:
-    print(f"OPTIMIZE {target_path} to cluster new additions...")
-
-    optimize_query = f"OPTIMIZE {target_path}"
-    spark.sql(optimize_query)
-
-    print(f"OPTIMIZE Completed!")    
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }

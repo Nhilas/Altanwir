@@ -77,11 +77,12 @@ from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_i
 
 # # Parameters
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
 # Run Configurations
-run_id = 'Debug4031'
-load_type = 'initial'
+environment = "dev"
+load_type = 'incremental'   # valid types: initial, full, or incremental
+run_id = 'dev_load_type_steam_api_01'
 max_threads = 6
 
 # Limits
@@ -89,9 +90,6 @@ game_limit = 2         # games per run
 batch_limit = 20       # batch per game. each batch is 100 reviews
 retry_limit = 5         # how many retries in case of a 429 code from steam
 jitter = 5              # maximum amount of seconds waiting between each batch
-
-# Debug
-targeted_reload = ""        # format this as a sql in clause. keep it as an empty string or comment otherwise
 
 # Retry Configurations
 wait_fixed_seconds = 10         # minimum retry wait of 10 seconds
@@ -113,6 +111,12 @@ wait_config = {
 
 # CELL ********************
 
+lakehouse_name = "IGDBAnalytics" if environment == "prod" else "IGDBAnalytics_Dev"
+lakehouse_info = notebookutils.lakehouse.get(lakehouse_name)
+audit_schema = "dev" if environment == "dev" else "steam"
+
+abfs_root = f"{lakehouse_info['properties']['abfsPath']}"   # necessary for pipeline runs, can be commented for dev runs
+
 # kill switch in case of 403 response codes
 kill_switch = threading.Event()
 
@@ -127,13 +131,26 @@ kill_switch = threading.Event()
 
 # ## Constants
 
-# PARAMETERS CELL ********************
+# CELL ********************
 
 NAMESPACE_ALTANWIR = uuid.UUID('f81d4fae-7dec-11d0-a765-00a0c91e6bf6')
 audit_server = '22jgi2dsfxnu5lmyn6ifyaro5e-wnxcbukzek4ejbckicpruy7sqq.datawarehouse.fabric.microsoft.com'
 audit_database = 'IGDBAudit'
-lakehouse_info = notebookutils.lakehouse.get("IGDBAnalytics")
-abfs_root = f"{lakehouse_info['properties']['abfsPath']}"   # necessary for pipeline runs, can be commented for dev runs
+
+base_url = "https://store.steampowered.com/appreviews"
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "jupyter_python"
+# META }
+
+# CELL ********************
+
+print(f"Steam Reviews API ELT Initiated with load_type = '{load_type}', for run_id = '{run_id}'")
+print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {audit_database}.{audit_schema}")
+print(f"Loading reviews from {base_url} into the Data Lake: {abfs_root}")
 
 # METADATA ********************
 
@@ -237,7 +254,7 @@ class SteamForbiddenError(Exception):
 
 def request_steam_reviews(app_id, last_cursor, session_instance):
 
-    base_url = f"https://store.steampowered.com/appreviews/{app_id}?json=1"
+    request_url = f"{base_url}/{app_id}?json=1"
 
     params = {
         "filter": "recent",
@@ -248,9 +265,9 @@ def request_steam_reviews(app_id, last_cursor, session_instance):
     }
 
     query_string = urlencode(params)
-    print(f"[{app_id}]\t\t\tGET: reviews for {base_url}&{query_string}")
+    print(f"[{app_id}]\t\t\tGET: reviews for {request_url}&{query_string}")
 
-    response = session_instance.get(base_url, params=params)
+    response = session_instance.get(request_url, params=params)
 
     # raises a custom exception for rate limiting or server backend error which triggers @retry
     if response.status_code ==403:
@@ -354,7 +371,7 @@ def process_batch(app_id, load_type, high_water_mark, start_cursor):
                     break   
 
                 # end path: we saved some reviews and we found the high watermark. this means we can stop looping as we reached the start of the previous run
-                if reviews and load_type != 'initial' and high_water_mark:
+                if reviews and load_type == 'incremental' and high_water_mark:
                     first_in_batch = reviews[0].get('timestamp_created')
                     if first_in_batch <= high_water_mark:
                         audit["load_status"] = "completed"
@@ -413,6 +430,12 @@ def process_batch(app_id, load_type, high_water_mark, start_cursor):
 
 # CELL ********************
 
+if load_type in ('full', 'initial', 'incremental'):
+    where_clause = f"and load_type = '{load_type}'"
+else:
+    print(f"Invalid load_type: {load_type}! Shutting down")
+    notebookutils.notebook.exit("Wrong load_type")
+
 # 1. Form the list of games to load
 conn = connect_audit_wh()
 db_cursor = conn.cursor()
@@ -421,10 +444,9 @@ queryGames = f"""
         app_id
         , high_water_mark
         , last_retrieved_cursor
-    from steam.loadReviews
+    from {audit_schema}.loadReviews
     where load_status in ('pending', 'in-progress', 'retry')
-        and load_type = '{load_type}'
-        {(f'and app_id in {targeted_reload}') if targeted_reload else ''}
+        {where_clause}
     order by priority_order asc, execution_start_time asc
 """
 
@@ -433,13 +455,21 @@ games_list = db_cursor.fetchall()
 
 conn.close()
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "jupyter_python"
+# META }
+
+# CELL ********************
+
 if len(games_list) == 0:
-    print("MAIN: No games to process. Orchestrator shutdown.")
+    print(f"MAIN: No games to process. Orchestrator shutdown. Used query:\n{queryGames}")
 else:
     print(f"MAIN: Starting orchestration for {len(games_list)} games, load_type = '{load_type}'; run_id = {run_id}")
-    print(f"MAIN: Game list is: {games_list}")
+    print(f"MAIN: Game list is: {games_list}. Extracted using query:\n{queryGames}")
     print(f"MAIN: Setup is: \n\tmax threads = {max_threads} \n\tgame_limit = {game_limit} \n\tbatch_limit = {batch_limit}x100 reviews \n\tjitter between 1 and {jitter} seconds")
-    if targeted_reload: print(f"MAIN:\tTargeted reload is enabled")
 
     # 2. Spin up the Thread Pool
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
@@ -469,8 +499,8 @@ else:
                 conn = connect_audit_wh()
                 db_cursor = conn.cursor()
                 
-                queryControl = """
-                    insert into steam.loadControlReviews (
+                queryControl = f"""
+                    insert into {audit_schema}.loadControlReviews (
                         app_id
                         , run_id
                         , execution_id
@@ -505,8 +535,8 @@ else:
                     , 0
                 ]
 
-                queryOrchestrator = """
-                    update steam.loadOrchestratorReviews
+                queryOrchestrator = f"""
+                    update {audit_schema}.loadOrchestratorReviews
                     set load_status = ?
                     where app_id = ?
                         and load_type = ?

@@ -21,7 +21,7 @@ The analytics is the fun side effect. The engineering is the point.
 | File | Purpose |
 |---|---|
 | `docs/architecture/intent.md` | What's being built and why. Intent, not progress. |
-| `TODO.md` | Active task state. What's done, in flight, queued. |
+| GitHub Issues | Active task state. Source of truth for what's done, in flight, queued. |
 | `docs/decisions/` | Sanitized session takeaways and ADRs (architecture decision records). Cross-tool readable timeline of what got decided when. |
 | `Labs/Lab02_Fabric/` | The Fabric implementation. Notebooks, pipelines, audit warehouse, lakehouse, sqlproj endpoint. |
 | `Labs/Lab00_duckdb` & `Labs/Lab01_dbt/` | Local dbt-on-DuckDB lab. Proof-of-concept only, not part of the Fabric pipeline. |
@@ -104,6 +104,7 @@ This file is the shared baseline. Tool-specific overrides and personal context l
 |---|---|---|
 | Claude | `.claude/CLAUDE.md` | Claude-specific behavior, coaching shape, personal context. Gitignored. |
 | Gemini | `.gemini/GEMINI.md` | Same purpose for Gemini. Gitignored. |
+| Antigravity | `.gemini/GEMINI.md` | Shares Gemini's context rules, but uses `.antigravity/workflows/` for its internal workflows. Persistent memory lives in global `AppData`, requiring manual sync across machines. |
 | Other tools (Cursor, Codex, etc.) | TBD | Set up if and when used. |
 
 If your tool has an extension file, read it after this one. If it doesn't, this file is sufficient.
@@ -188,7 +189,7 @@ If a suggestion drifts toward any of these, the right move is to flag the scope 
 
 1. Read this file (you're here).
 2. Read `docs/architecture/intent.md` for the *what* and *why*.
-3. Read `TODO.md` for the *what's next*.
+3. Check GitHub Issues for *what's next* (source of truth for task state).
 4. Skim `docs/decisions/` if the task touches any architectural choice.
 5. Then proceed.
 

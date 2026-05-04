@@ -20,15 +20,28 @@ The analytics is the fun side effect. The engineering is the point.
 
 | File | Purpose |
 |---|---|
-| `docs/architecture/intent.md` | What's being built and why. Intent, not progress. |
+| `docs/architecture/overview.md` | What's being built and why. Intent, scoring model context, not progress. |
+| `docs/architecture/scoring-model.md` | Deep-dive on the influence score and empirical Bayes priors. |
 | GitHub Issues | Active task state. Source of truth for what's done, in flight, queued. |
-| `docs/decisions/` | Sanitized session takeaways and ADRs (architecture decision records). Cross-tool readable timeline of what got decided when. |
+| `docs/adrs/` | Architecture Decision Records. Numbered, durable, one decision per file. |
+| `docs/decisions/decisions.md` | Sanitized session takeaways. Cross-tool readable timeline of what got decided when. |
+| `docs/references/` | Implementation gotchas and quirks: `fabric_gotchas.md`, `spark-quirks.md`, `sentiment-vader-quirks.md`. |
 | `Labs/Lab02_Fabric/` | The Fabric implementation. Notebooks, pipelines, audit warehouse, lakehouse, sqlproj endpoint. |
 | `Labs/Lab00_duckdb` & `Labs/Lab01_dbt/` | Local dbt-on-DuckDB lab. Proof-of-concept only, not part of the Fabric pipeline. |
 | `journal/` | Hand-written notes by the author. Voice preserved, not authoritative. |
 | `Bahir/` | Personal Foam knowledge base. Theory and tool syntax notes. |
 
-If a fact is in conflict between files, the order of authority is: code > `intent.md` > `docs/decisions/` > everything else.
+If a fact is in conflict between files, the order of authority is: code > `overview.md` > `docs/adrs/` > `docs/decisions/` > everything else.
+
+---
+
+## Scratch Space & Active Planning
+
+**`G:\Work\Altanwir-scratch\`** is an external workspace used for active planning, staging, and prompt generation. Check here frequently to maximize context cache hits for ongoing work:
+
+- **General Usage**: Contains a variety of helper items including plan files, intermediate steps, scratchpads, and session context.
+- **`plan-overview.md`**: The master plan directing the architecture documentation, structure, and repository framing. Always consult this when working on portfolio docs.
+- **`Architecture/` directory**: Houses intermediate artifacts referenced in `plan-overview.md`, specifically `silver-merged.md` (a consolidated fact base), and various prompt files (`merge-prompt.md`, `triage-prompt.md`, etc.) used to orchestrate documentation steps.
 
 ---
 
@@ -66,7 +79,7 @@ If a fact is in conflict between files, the order of authority is: code > `inten
 
 Two source pipelines (Steam reviews via custom multi-threaded scraper, IGDB via API) land raw JSON in Bronze, get cleaned and enriched in Silver (text quality gates, VADER sentiment, hash-based change detection, liquid clustering), and synthesize in Gold into a star schema (`factReviews` at review grain, `factGameScores` at game grain, plus aggregate views by genre / platform / theme). Empirical Bayes priors on confidence-adjusted ratings handle the small-sample-size problem. Audit and version control live in a separate Fabric Warehouse, accessed via pyodbc rather than Spark. The full pipeline ran on 77 million reviews in 2h 33m on trial capacity. Adaptive salting on hot keys (e.g. Counter-Strike at 2.5M reviews) applied at gold level, in the transition from review to game grain.
 
-Detailed architecture: `docs/architecture/intent.md`.
+Detailed architecture: `docs/architecture/overview.md`. Scoring model detail: `docs/architecture/scoring-model.md`.
 
 ---
 
@@ -157,7 +170,7 @@ dbt docs generate && dbt docs serve
 
 ### Fabric notebooks
 
-- Notebooks run inside the Fabric UI or via `pl_Steam_Reviews_Medallion` / `pl_IGDB_Medallion` pipelines. Parameter semantics and notebook contracts live in `docs/architecture/intent.md`.
+- Notebooks run inside the Fabric UI or via `pl_Steam_Reviews_Medallion` / `pl_IGDB_Medallion` pipelines. Parameter semantics and notebook contracts live in `docs/architecture/overview.md`.
 
 ### DuckDB (local)
 
@@ -188,9 +201,9 @@ If a suggestion drifts toward any of these, the right move is to flag the scope 
 ## Quick start for an agent landing here
 
 1. Read this file (you're here).
-2. Read `docs/architecture/intent.md` for the *what* and *why*.
+2. Read `docs/architecture/overview.md` for the *what* and *why*.
 3. Check GitHub Issues for *what's next* (source of truth for task state).
-4. Skim `docs/decisions/` if the task touches any architectural choice.
+4. Skim `docs/adrs/` if the task touches any architectural decision; `docs/decisions/decisions.md` for session takeaways.
 5. Then proceed.
 
 Three file reads should give any agent enough context to be useful immediately.

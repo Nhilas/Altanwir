@@ -33,18 +33,19 @@
 
 # CELL ********************
 
+import struct
+import pyodbc
 import json
 import emoji
-import re
 import pandas as pd
+import notebookutils
 
-from delta.tables import DeltaTable
-from pyspark.sql import functions as f
-from pyspark.sql.types import StructType, StructField, StringType, ByteType, IntegerType, LongType, FloatType, BooleanType, TimestampType
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-# debug / exploration
+from pyspark.sql import functions as f
+from pyspark.sql.types import ArrayType, StructType, StructField, StringType, IntegerType, LongType, FloatType, BooleanType, TimestampType
 from pyspark.sql.window import Window
+from delta.tables import DeltaTable
 
 # METADATA ********************
 
@@ -57,10 +58,13 @@ from pyspark.sql.window import Window
 
 # # Parameters
 
-# CELL ********************
+# PARAMETERS CELL ********************
 
 environment = "dev"
-load_type = "initial"
+load_type = "reload"   # valid options: "full", "reload", "incremental", "targeted"
+run_id = "dev_unique_word_count_02"
+
+targeted_reload = [ '271590', '620', '1966720' ]
 
 # METADATA ********************
 
@@ -85,8 +89,10 @@ source_abfs = f"{abfs_root}/Tables/bronze/steamreviews"
 source_path = f"{lakehouse_name}.bronze.steamreviews"
 source_table = DeltaTable.forName(spark, source_path)
 
-# target_path = f"{lakehouse_name}.silver.steamreviews"
-# target_table = DeltaTable.forName(spark, target_path)
+external_games_path = f"{lakehouse_name}.silver.externalgames"
+
+target_path = f"{lakehouse_name}.silver.steamreviews"
+target_table = DeltaTable.forName(spark, target_path)
 
 # METADATA ********************
 
@@ -113,9 +119,51 @@ audit_database = 'IGDBAudit'
 
 # CELL ********************
 
-print(f"Silver Steam Reviews ELT Initiated with load_type = '{load_type}'")
+raw_review_schema = StructType([
+    StructField("recommendationid", StringType(), False )
+    , StructField("author", StructType([
+        StructField("steamid", StringType(), False )
+        , StructField("playtime_forever", LongType(), False)
+        , StructField("playtime_at_review", LongType(), False)
+    ]), False)
+    , StructField("language", StringType(), False )
+    , StructField("review", StringType(), False )
+    , StructField("voted_up", BooleanType(), False )
+    , StructField("votes_up", LongType(), False )
+    , StructField("votes_funny", LongType(), False )
+    , StructField("comment_count", LongType(), False )
+    , StructField("reactions", ArrayType(StructType([
+        StructField("count", IntegerType(), False)
+        , StructField("reaction_type", StringType(), False)
+    ]), False ))
+    , StructField("weighted_vote_score", StringType(), False )
+    , StructField("timestamp_created", LongType(), False )
+    , StructField("timestamp_updated", LongType(), False )
+    , StructField("refunded", BooleanType(), False )
+    , StructField("written_during_early_access", BooleanType(), False )
+])
+
+sia_schema = StructType([
+    StructField("pos", FloatType())
+    , StructField("compound", FloatType())
+    , StructField("neu", FloatType())
+    , StructField("neg", FloatType())
+])
+
+deduplicateBy = Window.partitionBy("app_id", "steamid").orderBy(f.col("timestamp_updated").desc())
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+print(f"Silver Steam Reviews ELT Initiated with load_type = '{load_type}', for run_id = '{run_id}'")
 print(f"Environment = {environment}\n Lakehouse = {lakehouse_name}\n Audit = {audit_database}.{audit_schema}")
-print(f"Loading from {source_path} into silver.steamreviews") # {target_path}")
+print(f"Loading from {source_path} and {external_games_path} into {target_path}")
 
 # METADATA ********************
 
@@ -126,25 +174,17 @@ print(f"Loading from {source_path} into silver.steamreviews") # {target_path}")
 
 # MARKDOWN ********************
 
-# # EDA
+# # Functions
+
+# MARKDOWN ********************
+
+# ## demojize
 
 # CELL ********************
 
-df_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
-
-df_top_10_games = df_raw.groupBy("app_id") \
-    .agg(f.count("*").alias("total_reviews")) \
-    .withColumn("rn", f.row_number().over(Window.orderBy(f.col("total_reviews").desc()))) \
-    .filter(f.col("rn") <= 10 )
-
-df_games_total_reviews = df_raw \
-    .join(
-        f.broadcast(df_top_10_games)
-        , "app_id"
-        , "inner"
-    ) \
-    .select("app_id", "review_json")
-
+@f.pandas_udf(StringType())
+def demojize_udf(s: pd.Series) -> pd.Series:
+    return s.apply(emoji.demojize)
 
 # METADATA ********************
 
@@ -155,41 +195,17 @@ df_games_total_reviews = df_raw \
 
 # MARKDOWN ********************
 
-# **Schema**
-# * Taken from top 10 games by total review counts
+# ## sentiment_compound
 
 # CELL ********************
 
-json_rdd = df_games_total_reviews.select("review_json").rdd.map(lambda row: row[0])
+@f.pandas_udf(sia_schema)
+def sentiment_compound(r: pd.Series) -> pd.DataFrame:
+    sia = SentimentIntensityAnalyzer()
 
-schema_struct = spark.read.json(json_rdd).schema
+    analysis_series = r.apply(lambda review: sia.polarity_scores(review) if review else {"pos": None, "compound": None, "neu": None, "neg": None})
 
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-spark.read.json(json_rdd).printSchema()
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-df_games_loaded = df_games_total_reviews \
-    .withColumn("parse_review", f.from_json(f.col("review_json"), schema=schema_struct)) \
-    .select(
-        f.col("app_id"),
-        f.col("parse_review.*")
-    )
+    return pd.DataFrame(analysis_series.tolist())[["pos", "compound", "neu", "neg"]]
 
 # METADATA ********************
 
@@ -200,19 +216,22 @@ df_games_loaded = df_games_total_reviews \
 
 # MARKDOWN ********************
 
-# **Check Nulls**
-# critical columns:
-# * app_id
-# * recommendationid
-# * review
+# ## connect_audit_wh
 
 # CELL ********************
 
-# Count nulls per column
-df_games_loaded.select([
-    f.count(f.when(f.col(c).isNull(), 1)).alias(f"{c}_nulls")
-    for c in df_games_loaded.columns
-]).show()
+def connect_audit_wh():
+
+    # token formation
+    token = notebookutils.credentials.getToken("pbi")
+    token_bytes = token.encode("utf-16-le")
+    token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
+
+    # connection string + connection
+    conn_str = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={audit_server};DATABASE={audit_database};Encrypt=yes;TrustServerCertificate=no"
+    conn = pyodbc.connect(conn_str, attrs_before={1256: token_struct})
+
+    return conn
 
 # METADATA ********************
 
@@ -223,64 +242,34 @@ df_games_loaded.select([
 
 # MARKDOWN ********************
 
-# * Nothing important is null, only hardware info and while that's super interesting it is, alas, out of scope
-
-# MARKDOWN ********************
-
-# **Empty Strings**
+# ## check_version
 
 # CELL ********************
 
-df_games_loaded.select([
-    f.count(f.when(f.col(c[0]).isNull() | (f.trim(f.col(c[0])) == ""), 1)).alias(f"{c[0]}_empty")
-    for c in df_games_loaded.dtypes if c[1] == 'string'
-]).show()
+def check_version(table_name):
+    query = f"""
+        select top 1
+            latest_source_version
+        from {audit_schema}.versionControl
+        where table_name = ?
+        order by
+            commit_version desc
+    """
 
-# 7819 empty reviews, every other column is clean. lol
+    conn = connect_audit_wh()
+    db_cursor = conn.cursor()
 
-# METADATA ********************
+    try:
+        db_cursor.execute(query, table_name)
+        latest_source_version = db_cursor.fetchone()[0]
 
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-df_games_loaded.filter(f.col("review") == "").show()
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# MARKDOWN ********************
-
-# * yep legit have reviews with nothing inside. to remove
-
-# MARKDOWN ********************
-
-# **Useless Strings**
-
-# CELL ********************
-
-df_games_loaded.withColumn("review_length", f.char_length(f.trim(f.col("review")))) \
-    .groupBy(f.col("review_length")).count().orderBy("review_length").limit(10).show()
-    # .groupBy(f.col("review_length")).count().orderBy(f.desc("count")).limit(20).show()
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-df_games_loaded.withColumn("review_length", f.char_length(f.trim(f.col("review")))) \
-    .filter(f.col("review_length") == 1).select("app_id", "recommendationid", "review").show(30)
+        print(f"Retrieved last source version for {table_name}: {latest_source_version}")        
+        return latest_source_version
+    except Exception as e:
+        print(f"Failed to retrieve last source version for {table_name} from {audit_database}.{audit_schema}.versionControl: {e}")
+    finally:
+        db_cursor.close()
+        conn.close()    
 
 # METADATA ********************
 
@@ -291,293 +280,55 @@ df_games_loaded.withColumn("review_length", f.char_length(f.trim(f.col("review")
 
 # MARKDOWN ********************
 
-# * need to either treat or at least acknowledge emojis somehow
-
-# MARKDOWN ********************
-
-# **Cardinality**
+# ## insert_version
 
 # CELL ********************
 
-# cardinality (NDV) per column
-df_games_loaded.select([
-    f.count_distinct(c).alias(f"{c}_ndv")
-    for c in df_games_loaded.columns
-]).show()
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# MARKDOWN ********************
-
-# * totals - 1 813 986
-# * author - 1 813 984
-#   - fewer authors than total reviews? same guy did multiple reviews?
-# * reviews - 1 813 986
-# * timestamp_created - 1 801 244
-# * timestamp_updated - 1 801 048
-
-# CELL ********************
-
-# check weird author thing
-# df_games_loaded.printSchema()
-# Find the exact author structs that appear more than once
-df_author_counts = df_games_loaded.groupBy("author").count().filter(f.col("count") > 1)
-
-# Join back to the main dataframe to see both rn=1 and rn=2 side-by-side
-df_games_loaded.join(f.broadcast(df_author_counts).select("author"), on="author", how="inner") \
-    .select("app_id", "recommendationid", "author.steamid", "author.playtime_forever") \
-    .orderBy("author.steamid") \
-    .show(truncate=False)
-
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# MARKDOWN ********************
-
-# * yep legit same author different reviews
-# * it's a steam bug i think. reviews are identical, the recommendationid is sequential, it's proly double pressed or something. must deduplicate by author as well
-
-# CELL ********************
-
-# return the batch files with these reviews, just in case something went wrong when parsing them
-
-raw_json_path = f"{abfs_root}/Files/Steam/Reviews/initial/025486e3-06f8-4674-9fad-743454406dce/00efd8f8-d1d3-50bb-b7c9-414019db8a91/*.json"
-
-df_investigate = spark.read.option("multiLine", "true").json(raw_json_path) \
-    .filter(f.col("recommendationid").isin("14208378", "14208379"))
-
-df_investigate.select(
-    f.input_file_name().alias("source_batch_file"), 
-    f.col("recommendationid")
-).show(truncate=False)
-
-# nop it's legit from steam cool
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# MARKDOWN ********************
-
-# **Categories**
-
-# CELL ********************
-
-categorical_cols = [c for c, t in df_games_loaded.dtypes if t in ("string", "boolean")]
-for c in categorical_cols:
-    df_games_loaded.groupBy(c).count().orderBy(f.desc("count")).limit(20).show()
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# MARKDOWN ********************
-
-# - brother how do i have non-english reviews when i filtered by english xD to remove language != 'english'
-
-# MARKDOWN ********************
-
-# **weighted_vote_score**
-
-# CELL ********************
-
-df_games_loaded.select("weighted_vote_score").describe().show()
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# MARKDOWN ********************
-
-# * it's a string between 0.05 and 0.988 so i guess it's meant to be a percentage?
-# * official docu says it should be float, so it must be converted
-# * no idea what it means, but it's used by steam to assign review 'helpfulness'
-
-# MARKDOWN ********************
-
-# **reactions**
-
-# CELL ********************
-
-df_games_loaded.select("reactions").show(20)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# MARKDOWN ********************
-
-# * it's some internal thing with values like {1, 14}. not going to extract what they mean so i will ignore this column
-
-# MARKDOWN ********************
-
-# # Review Text Cleaning
-
-# CELL ********************
-
-import re
-
-test = "            [b]One of the best game I've played.\nAll my friends are obsessed with it              ![/b]"
-
-print(test)
-
-# kill bbcode tags
-print(re.sub(r'\[.*?\]', '', test))
-
-# kill \ characters (whitespace?)
-print(re.sub(r'[\t\n\r\f\v]', '', test))
-
-# trim
-print(re.sub(r'\s+', ' ', test).strip())
-
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-test = "This game gets a :thumbs_up: from me!"
-
-print(test)
-
-# clean demoji
-print(re.sub(r'[:_:]', ' ', test))
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-test_demoji = "C:/ is a path and some_variable_name and :thumbs_up:"
-
-print(test_demoji)
-
-demoji = re.compile(':\w+:')
-
-print(re.sub(r':(\w+):', r'\1', test_demoji))
-
-print(re.sub(r':(\w+):', r'\1', test_demoji).replace('_', ' '))
-
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-test_ascii = """
-  |\_/|        ****************************    (\_/)
- / @ @ \       *  "Purrrfectly pleasant"  *   (='.'=)
-( > º < )      *       Poppy Prinz        *   (")_(")
- `>>x<<´       *   (pprinz@example.com)   *
- /  O  \       ****************************
-"""
-
-print(test_ascii)
-
-partial_ascii = re.sub(r'[^\w]{3,}', ' ', test_ascii)
-
-print(partial_ascii)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-test_ascii = "Amazing game! 10/10 :)"
-
-print(test_ascii)
-
-partial_ascii = re.sub(r'[^\w\s]{3,}', ' ', test_ascii)
-
-print(partial_ascii)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-# %pip install emoji
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-import emoji
-
-test_emoji = "This game gets a 🥔 and a 👍 from me!"
-
-demoji_text = emoji.demojize(test_emoji)
-
-print(demoji_text)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-test_bug1 = "I found a bug"
-test_bug2 = "I was bugged the whole time playing"
-test_bug3 = "My name is vandebug and i hate lagging my ass off"
-
-test1 = re.sub(r'(?i)\bbug|lag', 'GOTCHA', test_bug1)
-print(test1)
-
-test2 = re.sub(r'(?i)\bbug|lag', 'GOTCHA', test_bug2)
-print(test2)
-
-test3 = re.sub(r'(?i)\bbug|lag', 'GOTCHA', test_bug3)
-print(test3)
+def insert_version(audit_row, latest_source_version):
+    insert_query = f"""
+        insert into {audit_schema}.versionControl (
+            table_name
+            , run_id
+            , change_type
+            , commit_version
+            , commit_timestamp
+            , rows_inserted
+            , rows_updated
+            , latest_source_version
+            , audit_notes
+        )
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    full_audit_row = audit_row[0].asDict()
+    audit_notes = json.dumps(full_audit_row, default=str)
+
+    insert_parameters = [
+        target_path
+        , run_id
+        , audit_row[0]['operation']
+        , audit_row[0]['version']
+        , audit_row[0]['timestamp']
+        , int(audit_row[0]['operationMetrics']['numTargetRowsInserted'])
+        , int(audit_row[0]['operationMetrics']['numTargetRowsUpdated'])
+        , latest_source_version
+        , audit_notes
+    ]
+
+    conn = connect_audit_wh()
+    db_cursor = conn.cursor()
+
+    try:
+        db_cursor.execute(insert_query, insert_parameters)
+        conn.commit()
+    except Exception as e:
+        print(f"Failed to insert version: {e}")
+        conn.rollback()
+    else:
+        print(f"Successfully logged audit for {target_path} in {audit_schema}.versionControl with the audit_row = {audit_notes}")
+    finally:
+        db_cursor.close()
+        conn.close()
 
 # METADATA ********************
 
@@ -592,28 +343,35 @@ print(test3)
 
 # CELL ********************
 
-raw_review_schema = StructType([
-    StructField("recommendationid", StringType(), False )
-    , StructField("author", StructType([
-        StructField("steamid", StringType(), False )
-        , StructField("playtime_forever", LongType(), False)
-        , StructField("playtime_at_review", LongType(), False)
-    ]), False)
-    , StructField("language", StringType(), False )
-    , StructField("review", StringType(), False )
-    , StructField("voted_up", BooleanType(), False )
-    , StructField("votes_up", LongType(), False )
-    , StructField("votes_funny", LongType(), False )
-    , StructField("weighted_vote_score", StringType(), False )
-    , StructField("timestamp_created", LongType(), False )
-    , StructField("timestamp_updated", LongType(), False )
-    , StructField("refunded", BooleanType(), False )
-    , StructField("written_during_early_access", BooleanType(), False )
-])
+# Load data from Bronze based on load_type
+if load_type in ['full', 'reload']:
+    df_bronze_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
+elif load_type == 'incremental':
+    latest_source_version = check_version(table_name=target_path)
+    current_source_version = source_table.history(1).select("version").collect()[0][0]
 
-# print(raw_review_schema)
+    if latest_source_version is None:
+        print(f"No previous source version found for {target_path} in audit. Defaulting to full load.")
 
-deduplicateBy = Window.partitionBy("app_id", "steamid").orderBy(f.col("timestamp_updated").desc())
+        df_bronze_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
+    elif current_source_version == latest_source_version:
+        print(f"No new version found for {source_path}. Latest version in audit: {latest_source_version}, current version in source: {current_source_version}. Shutting down.")
+        notebookutils.notebook.exit("No new version to process")
+    else:
+        df_bronze_raw = spark.read.format("delta") \
+            .option("readChangeFeed", "true") \
+            .option("startingVersion", latest_source_version+1) \
+            .table(source_path) \
+            .filter(f.col("_change_type").isin("insert", "update_postimage")) \
+            .select("app_id", "review_json")
+elif load_type == 'targeted' and targeted_reload:
+    targeted_app_ids = [int(app_id) for app_id in targeted_reload]
+    df_bronze_raw = spark.read.format("delta").load(source_abfs) \
+        .filter(f.col("app_id").isin(targeted_app_ids)) \
+        .select("app_id", "review_json")
+else:
+    print(f"Invalid load_type: {load_type}! Shutting down")
+    notebookutils.notebook.exit("Wrong load_type")
 
 # METADATA ********************
 
@@ -624,8 +382,7 @@ deduplicateBy = Window.partitionBy("app_id", "steamid").orderBy(f.col("timestamp
 
 # CELL ********************
 
-df_bronze_raw = spark.read.format("delta").load(source_abfs).select("app_id", "review_json")
-
+# basic parsing and flattening of the json review data, to get it ready for cleaning and enrichment
 df_bronze_reviews = df_bronze_raw \
     .withColumn("parsed_review", f.from_json(f.col("review_json"), schema=raw_review_schema)) \
     .select(
@@ -637,6 +394,8 @@ df_bronze_reviews = df_bronze_raw \
         , f.col("parsed_review.voted_up")
         , f.col("parsed_review.votes_up")
         , f.col("parsed_review.votes_funny")
+        , f.col("parsed_review.comment_count")
+        , f.col("parsed_review.reactions")        
         , f.col("parsed_review.weighted_vote_score")
         , f.col("parsed_review.author.playtime_forever")
         , f.col("parsed_review.author.playtime_at_review")
@@ -645,15 +404,6 @@ df_bronze_reviews = df_bronze_raw \
         , f.col("parsed_review.refunded")
         , f.col("parsed_review.written_during_early_access")
     )
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
 
 # remove duplicates, non-english reviews, empty reviews, and enforce strict non-null critical columns
 df_bronze_reviews_filtered = df_bronze_reviews \
@@ -669,120 +419,115 @@ df_bronze_reviews_filtered = df_bronze_reviews \
 
 # cast stuff to the appropriate type
 df_bronze_reviews_cast = df_bronze_reviews_filtered \
+    .withColumn("eId", f.col("app_id").cast(StringType())) \
     .withColumn("weightedVoteScore", f.col("weighted_vote_score").cast(FloatType())) \
-    .withColumn("playtimeForever", f.col("playtime_forever").cast(IntegerType())) \
-    .withColumn("playtimeAtReview", f.col("playtime_at_review").cast(IntegerType())) \
+    .withColumn("playtimeForever", f.coalesce(f.col("playtime_forever").cast(IntegerType()), f.lit(0))) \
+    .withColumn("playtimeAtReview", f.coalesce(f.col("playtime_at_review").cast(IntegerType()), f.lit(0))) \
     .withColumn("timestampCreated", f.from_unixtime(f.col("timestamp_created")).cast(TimestampType())) \
-    .withColumn("timestampUpdated", f.from_unixtime(f.col("timestamp_updated")).cast(TimestampType())) 
+    .withColumn("timestampUpdated", f.from_unixtime(f.col("timestamp_updated")).cast(TimestampType())) \
+    .withColumn("votesUp",
+        f.when(f.col("votes_up") > 2147483647, 0 ).otherwise(f.col("votes_up").cast(IntegerType()))
+    ) \
+    .withColumn("votesFunny",
+        f.when(f.col("votes_funny") > 2147483647, 0 ).otherwise(f.col("votes_funny").cast(IntegerType()))
+    ) \
+    .withColumn("commentCount", f.col("comment_count").cast(IntegerType())) \
+    .withColumn("reactionTypeCount"
+        , f.coalesce(f.size(f.col("reactions")), f.lit(0)).cast(IntegerType())
+    ) \
+    .withColumn("reactionCount"
+        , f.coalesce(f.aggregate( f.col("reactions"), f.lit(0), lambda sum, x: sum + x["count"] ), f.lit(0)).cast(IntegerType())
+    )
     
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-@f.pandas_udf(StringType())
-def demojize_udf(s: pd.Series) -> pd.Series:
-    return s.apply(emoji.demojize)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-sia_struct = StructType([
-        StructField("pos", FloatType())
-            , StructField("compound", FloatType())
-            , StructField("neu", FloatType())
-            , StructField("neg", FloatType())
-        ])
-
-@f.pandas_udf(sia_struct)
-def sentiment_compound(r: pd.Series) -> pd.DataFrame:
-    sia = SentimentIntensityAnalyzer()
-
-    analysis_series = r.apply(lambda review: sia.polarity_scores(review) if review else {"pos": None, "compound": None, "neu": None, "neg": None})
-
-    return pd.DataFrame(analysis_series.tolist())[["pos", "compound", "neu", "neg"]]
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
+# convert emoji icons into text so vader can read them    
 df_bronze_reviews_demoji = df_bronze_reviews_cast \
     .withColumn("reviewDemoji", demojize_udf(f.col("review")))
 
+# extensive cleaning of the review text to remove bbcode, links, hashtags, emojis, and other non-standard characters, while also trying to catch common censorship patterns (i.e. :heart_suit: in a row)
 df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
     .withColumn("reviewText",
-                f.trim(
+        f.trim(
+            f.regexp_replace(
+                f.regexp_replace(
                     f.regexp_replace(
                         f.regexp_replace(
                             f.regexp_replace(
                                 f.regexp_replace(
-                                    f.regexp_replace(
-                                        f.regexp_replace(
-                                            f.col("reviewDemoji") # bbcode removal -> remove any [ ] pair with anything inside i.e. [b] [/b]
-                                            , r"\[.*?\]"
-                                            ,''
-                                        )
-                                        , r"[^\w!\?\s]{3,}|#|https?://\S+"  # ascii, hashtag, link removal ->  remove any non-alphanumeric non-! character that repeats at least 3 times in sequence, remove any #, remove anything that starts with https:// followed by any repeating non-whitespace character
-                                        , ''
-                                    )
-                                    , r"(:heart_suit:){7,}"     # replace a string of 7+ x :heart_suit: (the demojized version of the character steam uses for censorship)
-                                    , 'fucking'
-                                    )
-                                , r"(:heart_suit:){2,}"    # catchall for any other censor
-                                , 'fuck'
+                                    f.col("reviewDemoji") # bbcode, non 0-127 ascii removal  -> remove any [ ] pair with anything inside i.e. [b] [/b], and anything not nailed to the floor (typical characters are safe: a-z, 0-9, punctuation etc.)
+                                    , r"\[.*?\]|[^\x00-\x7F]"
+                                    ,''
                                 )
-                            , r':(\w+):'
-                            , r'$1'     # demoji removal of ':' -> replace any group found between two ::, of alphanumeric characters that repeat at least once, with itself (just without the :)
+                                , r"(?:[^A-Za-z0-9\s!?]\s*+){3,}+|#|https?://\S+"  # ascii, hashtag, link ->  remove any combination of 3 or more non-alphanumeric non-!? characters, remove any #, remove anything that starts with https:// followed by any repeating non-whitespace character
+                                , ''
+                            )
+                            , r"(:heart_suit:){7,}"     # replace a string of 7+ x :heart_suit: (the demojized version of the character steam uses for censorship)
+                            , 'fucking'
                         )
-                        , r"_|\s+"    # replace _ OR any whitespace character that repeats at least once with a single space
-                        , ' '
+                        , r"(:heart_suit:){2,}"    # catchall for any other censor
+                        , 'fuck'
                     )
+                    , r':(\w+):'
+                    , r'$1 '     # demoji removal of ':' -> replace any group found between two ::, of alphanumeric characters that repeat at least once, with itself (just without the :)
                 )
+                , r"_|\s+"    # replace _ OR any whitespace character that repeats at least once with a single space
+                , ' '
+            )
+        )
     )
 
+# enhance the review data with additional features
 df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
+    .withColumn("reviewLengthRaw", f.length(f.col("review"))) \
     .withColumn("reviewLength", f.length(f.col("reviewText"))) \
-    .withColumn("wordCount", f.size(f.split(f.col("reviewText"), " "))) \
-    .withColumn("vaderRatio", 
-        f.when(f.col("reviewLength") == 0, 0.0).otherwise(
-            f.length(f.regexp_replace(f.col("reviewText"), r'[^\x00-\x7F]', '')) / f.col("reviewLength"))
+    .withColumn("words", f.split(f.col("reviewText"), " ")) \
+    .withColumn("wordCount", f.size(f.col("words"))) \
+    .withColumn("wordLengthRatio",
+        f.when(f.col("wordCount") == 0, 0.0).otherwise(
+            f.col("reviewLength") / f.col("wordCount"))
     ) \
-    .withColumn("isUsableForVader", f.col("vaderRatio") >= 0.6) \
-    .withColumn("containsBugReport", f.col("reviewText").rlike(r'(?i)\b(bug|bugs|crash|error|lag|stuck)')) \
+    .withColumn("hasCredibleText",
+        (f.col("reviewLength") > 0)
+        & (f.col("wordLengthRatio").between(2,15))
+    ) \
+    .withColumn("uniqueWordCount", f.size(f.array_distinct(f.col("words")))) \
+    .withColumn("uniqueWordRatio",
+        f.when(f.col("wordCount") == 0, 0.0).otherwise(
+            f.col("uniqueWordCount") / f.col("wordCount"))     # unique 'words' to total 'words'
+    ) \
+    .withColumn("asciiRatio",
+        f.when(f.col("reviewLengthRaw") == 0, 0.0).otherwise(
+            f.length(f.regexp_replace(f.col("review"), r'[^\x00-\x7F]', '')) / f.col("reviewLengthRaw"))             # ratio of characters outside of the 0-127 ascii range. this will catch unicode and non-english characters
+    ) \
+    .withColumn("isVaderEligible", 
+        (f.col("reviewLength") > 1)
+        & ((f.col("asciiRatio") >= 0.15) | (f.col("uniqueWordRatio") == 1))
+        & (f.col("uniqueWordRatio") >= 0.1)
+        & (f.col("hasCredibleText"))
+    ) \
+    .withColumn("containsBugReport", 
+        f.col("reviewText").rlike(r'(?i)\b(bug|bugs|crash|error|lag|stuck|glitch)')                                    # find any case insensitive word that starts with those elements (i.e. bug, bugging, bugged)
+    ) \
     .withColumn("emotionalIntensity", 
-        f.when(f.col("reviewLength") == 0, 0.0) \
-            .otherwise((f.col("reviewLength") - f.length(f.regexp_replace(f.col("reviewText"), r'!{2,}|[A-Z]', ''))) / f.col("reviewLength"))
+        f.when(f.col("reviewLength") == 0, 0.0).otherwise(
+            (f.col("reviewLength") - f.length(f.regexp_replace(f.col("reviewText"), r'!{2,}|[A-Z]', ''))) / f.col("reviewLength"))      # ratio of '!' and caps vs total length
     ) \
     .withColumn("sentimentAnalysis", 
-        f.when(f.col("isUsableForVader"), sentiment_compound(f.col("reviewText"))) \
+        f.when(f.col("isVaderEligible"), sentiment_compound(f.col("reviewText"))) \
             .otherwise(None)
      ) \
     .select(
-        "app_id"
+        "eId"
         , "recommendationid"
         , "steamid"
         , "language"
         , 'review'
         , "reviewText"
         , "voted_up"
-        , "votes_up"
-        , "votes_funny"
+        , "votesUp"
+        , "votesFunny"
+        , "commentCount"
+        , "reactionTypeCount"
+        , "reactionCount"
         , "weightedVoteScore"
         , "playtimeForever"
         , "playtimeAtReview"
@@ -792,8 +537,12 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
         , "written_during_early_access"
         , "reviewLength"
         , "wordCount"
-        , "vaderRatio"
-        , "isUsableForVader"
+        , "wordLengthRatio"
+        , "hasCredibleText"
+        , "uniqueWordCount"
+        , "uniqueWordRatio"
+        , "asciiRatio"
+        , "isVaderEligible"
         , "containsBugReport"
         , "emotionalIntensity"
         , "sentimentAnalysis.pos"
@@ -802,21 +551,32 @@ df_bronze_reviews_enhanced = df_bronze_reviews_cleaned \
         , "sentimentAnalysis.neg"
     )
 
-columns_to_hash = [c for c in df_bronze_reviews_enhanced.columns if c not in ['app_id', 'recommendationid'] ]
+# join with external games to get the gameKey
+df_external_games = spark.read.format("delta").table(external_games_path).select("eId", "gameKey").filter(f.col("egSourceName") == 'Steam')
 
-df_bronze_reviews_final = df_bronze_reviews_enhanced \
-    .withColumn("hash", f.sha2(f.concat_ws(",", *[f.col(c) for c in columns_to_hash]), 256)) \
+df_bronze_lookup = df_bronze_reviews_enhanced.alias("reviews") \
+    .join(f.broadcast(df_external_games).alias("eg"), "eId", "inner")
+
+# hash excludes review raw and review cleaned for performance reasons; they can be quite large, and any change in the text is already captured by length, review metadata, ratios, sentiment and so on
+columns_to_hash = [c for c in df_bronze_lookup.columns if c not in ['eId', 'steamid', 'review', 'reviewText'] ]
+
+df_bronze_reviews_final = df_bronze_lookup \
+    .withColumn("hash", f.sha2(f.concat_ws("|", *[f.col(c) for c in columns_to_hash]), 256)) \
     .selectExpr(
-        "sha2(cast(concat(cast(app_id as string), recommendationid) as string), 256)   as reviewKey"
-        , "cast(app_id as string)                                                       as eId"
+        "sha2(cast(concat_ws('|', eId, steamid) as string), 256)                        as reviewKey"
+        , "gameKey                                                                      as gameKey"
+        , "eId                                                                          as eId"
         , "recommendationid                                                             as recommendationId"
         , "steamid                                                                      as authorId"
         , "language                                                                     as language"
         , "review                                                                       as reviewRaw"
         , "reviewText                                                                   as reviewCleaned"
         , "voted_up                                                                     as votedUp"
-        , "votes_up                                                                     as votesUp"
-        , "votes_funny                                                                  as votesFunny"
+        , "votesUp                                                                      as votesUp"
+        , "votesFunny                                                                   as votesFunny"
+        , "commentCount                                                                 as commentCount"
+        , "reactionTypeCount                                                            as reactionTypeCount"
+        , "reactionCount                                                                as reactionCount"
         , "weightedVoteScore                                                            as weightedVoteScore"
         , "playtimeForever                                                              as playtimeForever"
         , "playtimeAtReview                                                             as playtimeAtReview"
@@ -826,27 +586,20 @@ df_bronze_reviews_final = df_bronze_reviews_enhanced \
         , "written_during_early_access                                                  as writtenDuringEarlyAccess"
         , "reviewLength                                                                 as reviewLength"
         , "wordCount                                                                    as wordCount"
-        , "vaderRatio                                                                   as vaderRatio"
-        , "isUsableForVader                                                             as isUsableForVader"
+        , "wordLengthRatio                                                              as wordLengthRatio"
+        , "hasCredibleText                                                              as hasCredibleText"
+        , "uniqueWordCount                                                              as uniqueWordCount"
+        , "uniqueWordRatio                                                              as uniqueWordRatio"
+        , "asciiRatio                                                                   as asciiRatio"
+        , "isVaderEligible                                                              as isVaderEligible"
         , "containsBugReport                                                            as containsBugReport"
         , "emotionalIntensity                                                           as emotionalIntensity"
         , "pos                                                                          as sentimentPositive"
         , "compound                                                                     as sentimentCompound"
         , "neu                                                                          as sentimentNeutral"
         , "neg                                                                          as sentimentNegative"
-        , "hash"
+        , "hash                                                                         as hash"
     )
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-df_bronze_reviews_final.write.mode("overwrite").saveAsTable("silverSteamReviewsTest")
 
 # METADATA ********************
 
@@ -857,56 +610,125 @@ df_bronze_reviews_final.write.mode("overwrite").saveAsTable("silverSteamReviewsT
 
 # MARKDOWN ********************
 
-# # Debug
+# ## Merge
 
 # CELL ********************
 
-df_bronze_reviews_cleaned = df_bronze_reviews_demoji \
-    .withColumn("reviewText_bbCode",
-                f.trim(
-                    f.regexp_replace(
-                        f.col("reviewDemoji")
-                        , r"\[.*?\]|[^\w]{3,}"  # bbcode and ascii removal
-                        , ''
-                    )
-                )
-    ) \
-    .withColumn("reviewText_demoji",
-                f.trim(
-                    f.regexp_replace(
-                        f.regexp_replace(
-                            f.col("reviewDemoji")
-                            , r"\[.*?\]|[^\w]{3,}"  # bbcode and ascii removal
-                            , ''
-                        )
-                        , r':(\w+):'
-                        , r'$1'     # demoji removal of : (keep the group, discard the :)
-                    )
-                )
-    ) \
-    .withColumn("reviewText_final",
-                f.trim(
-                    f.regexp_replace(
-                        f.regexp_replace(
-                            f.regexp_replace(
-                                f.col("reviewDemoji")
-                                , r"\[.*?\]|[^\w]{3,}"  # bbcode and ascii removal
-                                , ''
-                            )
-                            , r':(\w+):'
-                            , r'$1'     # demoji removal of : (keep the group, discard the :)
-                        )
-                        , r"_|\s+"    # replace demoji _ with blank, remove whitespace, trim
-                        , ' '
-                    )
-                )
-    ) \
-    .withColumn("vaderRatio", 
-        f.when(f.length(f.col("review")) == 0, 0.0).otherwise(
-            f.length(f.regexp_replace(f.col("review"), r'[^\x00-\x7F]', '')) / f.length(f.col("review")))
-    ) \
-    .withColumn("isUsableForVader", f.col("vaderRatio") >= 0.6)           
+if load_type == "full":
+    print(f"Load type is '{load_type}', truncating table {target_path}...")    
 
+    truncate_query = f"truncate table {target_path}"
+    spark.sql(truncate_query)
+
+    print("Truncate completed")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+version_before = target_table.history(1).collect()[0][0]
+
+print(f"Merge target: {target_path}. Executing merge...")
+
+target_table.alias("t").merge(
+    df_bronze_reviews_final.alias("s"),
+    "t.reviewKey = s.reviewKey"
+).whenMatchedUpdate(
+    condition="t.hash != s.hash",
+    set={
+        "gameKey":                  "s.gameKey"
+        , "eId":                    "s.eId"
+        , "recommendationId":       "s.recommendationId"
+        , "authorId":               "s.authorId"
+        , "language":               "s.language"
+        , "reviewRaw":              "s.reviewRaw"
+        , "reviewCleaned":          "s.reviewCleaned"
+        , "votedUp":                "s.votedUp"
+        , "votesUp":                "s.votesUp"
+        , "votesFunny":             "s.votesFunny"
+        , "commentCount":           "s.commentCount"
+        , "reactionTypeCount":      "s.reactionTypeCount"
+        , "reactionCount":          "s.reactionCount"
+        , "weightedVoteScore":      "s.weightedVoteScore"
+        , "playtimeForever":        "s.playtimeForever"
+        , "playtimeAtReview":       "s.playtimeAtReview"
+        , "timestampCreated":       "s.timestampCreated"
+        , "timestampUpdated":       "s.timestampUpdated"
+        , "refunded":               "s.refunded"
+        , "writtenDuringEarlyAccess": "s.writtenDuringEarlyAccess"
+        , "reviewLength":           "s.reviewLength"
+        , "wordCount":              "s.wordCount"
+        , "wordLengthRatio":        "s.wordLengthRatio"
+        , "hasCredibleText":        "s.hasCredibleText"
+        , "uniqueWordCount":        "s.uniqueWordCount"
+        , "uniqueWordRatio":        "s.uniqueWordRatio"
+        , "asciiRatio":             "s.asciiRatio"
+        , "isVaderEligible":       "s.isVaderEligible"
+        , "containsBugReport":      "s.containsBugReport"
+        , "emotionalIntensity":     "s.emotionalIntensity"
+        , "sentimentPositive":      "s.sentimentPositive"
+        , "sentimentCompound":      "s.sentimentCompound"
+        , "sentimentNeutral":       "s.sentimentNeutral"
+        , "sentimentNegative":      "s.sentimentNegative"
+        , "update_run_id":          f"'{run_id}'"
+        , "hash":                   "s.hash"
+    }
+).whenNotMatchedInsert(
+    values={
+        "reviewKey":                "s.reviewKey"
+        , "gameKey":                "s.gameKey"
+        , "eId":                    "s.eId"
+        , "recommendationId":       "s.recommendationId"
+        , "authorId":               "s.authorId"
+        , "language":               "s.language"
+        , "reviewRaw":              "s.reviewRaw"
+        , "reviewCleaned":          "s.reviewCleaned"
+        , "votedUp":                "s.votedUp"
+        , "votesUp":                "s.votesUp"
+        , "votesFunny":             "s.votesFunny"
+        , "commentCount":           "s.commentCount"
+        , "reactionTypeCount":      "s.reactionTypeCount"
+        , "reactionCount":          "s.reactionCount"        
+        , "weightedVoteScore":      "s.weightedVoteScore"
+        , "playtimeForever":        "s.playtimeForever"
+        , "playtimeAtReview":       "s.playtimeAtReview"
+        , "timestampCreated":       "s.timestampCreated"
+        , "timestampUpdated":       "s.timestampUpdated"
+        , "refunded":               "s.refunded"
+        , "writtenDuringEarlyAccess": "s.writtenDuringEarlyAccess"
+        , "reviewLength":           "s.reviewLength"
+        , "wordCount":              "s.wordCount"
+        , "wordLengthRatio":        "s.wordLengthRatio"
+        , "hasCredibleText":        "s.hasCredibleText"        
+        , "uniqueWordCount":        "s.uniqueWordCount"
+        , "uniqueWordRatio":        "s.uniqueWordRatio"
+        , "asciiRatio":             "s.asciiRatio"
+        , "isVaderEligible":       "s.isVaderEligible"
+        , "containsBugReport":      "s.containsBugReport"
+        , "emotionalIntensity":     "s.emotionalIntensity"
+        , "sentimentPositive":      "s.sentimentPositive"
+        , "sentimentCompound":      "s.sentimentCompound"
+        , "sentimentNeutral":       "s.sentimentNeutral"
+        , "sentimentNegative":      "s.sentimentNegative"
+        , "insert_run_id":          f"'{run_id}'"
+        , "update_run_id":          "null"
+        , "hash":                   "s.hash"
+    }
+).execute()
+
+audit_row = target_table.history(1).collect()
+version_after = audit_row[0][0]
+
+if version_before == version_after:
+    print("Merge executed. No rows affected")
+else:
+    current_source_version = source_table.history(1).collect()[0][0]
+    insert_version(audit_row=audit_row, latest_source_version=current_source_version)
 
 # METADATA ********************
 

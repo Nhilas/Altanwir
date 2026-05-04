@@ -27,11 +27,14 @@
 import requests
     # this is a library that specializes in http requests, among other things
 
+igdb_client_id = ""  # set before running
+igdb_token     = ""  # set before running
+
 headers = {
-    'Client-ID': 'IGDB_CLIENT_ID_REDACTED'
-    , 'Authorization': 'Bearer IGDB_BEARER_TOKEN_REDACTED'
+    'Client-ID': igdb_client_id
+    , 'Authorization': f'Bearer {igdb_token}'
 }
-    # my credentials. usually you'd use variables here to keep them a secret
+    # credentials injected at runtime — do not hardcode here
 
 query = 'fields name, total_rating; limit 10;'
     # this is written in a language called apicalypse

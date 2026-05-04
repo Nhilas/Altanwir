@@ -62,10 +62,12 @@ maxLimit = 0
 # table_load = "games, genres, themes, platforms, platform_types, external_games, external_game_sources"
 table_load = "platform_types"
 
-# Yes bad practice I'm aware
+igdb_client_id = ""  # injected by pipeline at runtime
+igdb_token     = ""  # injected by pipeline at runtime
+
 headers = {
-    'Client-ID': 'IGDB_CLIENT_ID_REDACTED'
-    , 'Authorization': 'Bearer IGDB_BEARER_TOKEN_REDACTED'
+    'Client-ID': igdb_client_id
+    , 'Authorization': f'Bearer {igdb_token}'
     , 'Content-Type': 'text/plain'
 }
 

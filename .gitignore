@@ -1,0 +1,45 @@
+# Ignore folders
+
+## DuckDB
+Labs/Lab00_duckdb/data/
+
+## DBT
+target/
+dbt_packages/
+logs/
+
+## Fabric
+Labs/Lab02_Fabric/01_Debugging
+
+## Accounts
+Accounts/
+
+## Claude (all personal — not tracked)
+.claude/
+.mcp.json
+
+## Gemini and Antigravity (all personal — not tracked)
+.gemini/
+.antigravity/
+
+# Ignore files
+
+## Ignore notebook configs
+*.platform
+.work-folder-info
+
+## Ignore DuckDB temporary files
+*.db
+*.db.wal
+*.duckdb
+
+## Ignore executable files
+*.exe
+
+## Ignore env files
+.env
+*.env
+
+# Misc
+*.gitignore
+!.gitignore

@@ -27,9 +27,12 @@
 
 import requests
 
+igdb_client_id = ""  # set before running
+igdb_token     = ""  # set before running
+
 headers = {
-    'Client-ID': 'IGDB_CLIENT_ID_REDACTED'
-    , 'Authorization': 'Bearer IGDB_BEARER_TOKEN_REDACTED'
+    'Client-ID': igdb_client_id
+    , 'Authorization': f'Bearer {igdb_token}'
 }
 
 query =  (

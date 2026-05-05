@@ -1,0 +1,20 @@
+name: lint
+on: [push, pull_request]
+jobs:
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v1
+        with:
+            args: --config .config/ruff.toml
+
+  lint-sql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install sqlfluff
+      - run: sqlfluff lint --config .config/.sqlfluff Fabric/IGDBAnalytics.SQLEndpoint/

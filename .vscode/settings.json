@@ -1,4 +1,5 @@
 {
+    "ruff.configuration": ".config/ruff.toml",
     "files.associations": {
         "*.sql": "jinja-sql"
     },

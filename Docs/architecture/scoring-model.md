@@ -2,13 +2,13 @@
 
 This is the analytical-engineering subdocument behind [overview.md](overview.md). It covers everything between "we have clean review text in Silver" and "we expose a tier label in `vw_factGameScores`": VADER eligibility and text preparation, the `reviewInfluenceScore` formula, influence-weighted aggregation at game grain, Bayesian shrinkage with empirically-derived priors, tier calibration, and the sentiment-vote alignment metric that surfaces the headline analytical finding.
 
-Every formula here exists in code under `Labs/Lab02_Fabric/`. This doc explains *why* — the constraint or analytical observation that forced each shape.
+Every formula here exists in code under `Fabric/`. This doc explains *why* — the constraint or analytical observation that forced each shape.
 
 ---
 
 ## VADER and eligibility
 
-> **Code:** `Labs/Lab02_Fabric/NB_Steam_Reviews_Silver.Notebook` — text cleaning, engineered quality columns (`isVaderEligible`, `hasCredibleText`, `wordLengthRatio`, `asciiRatio`, `uniqueWordRatio`), VADER `pandas_udf` invocation.
+> **Code:** `Fabric/NB_Steam_Reviews_Silver.Notebook` — text cleaning, engineered quality columns (`isVaderEligible`, `hasCredibleText`, `wordLengthRatio`, `asciiRatio`, `uniqueWordRatio`), VADER `pandas_udf` invocation.
 
 Sentiment columns are produced with [VADER](https://github.com/cjhutto/vaderSentiment), a lexicon-based scorer for short, social-media-style English. Two design choices wrap it: a multi-stage text-cleaning chain in Silver, and a hard eligibility gate that drops noisy reviews before scoring.
 
@@ -48,7 +48,7 @@ The full eligibility logic and the NULL-no-fallback contract for downstream aggr
 
 ## `reviewInfluenceScore` — per-review weighted blend
 
-> **Code:** `Labs/Lab02_Fabric/NB_Steam_Reviews_Gold.Notebook` — derives `communitySignal`, `lengthSignal`, `emotionalSignal`, `playtimeSignal`, `sentimentSignal`, and assembles `reviewInfluenceScore`. Per-game `max_*` aggregations live in the `game_stats` CTE.
+> **Code:** `Fabric/NB_Steam_Reviews_Gold.Notebook` — derives `communitySignal`, `lengthSignal`, `emotionalSignal`, `playtimeSignal`, `sentimentSignal`, and assembles `reviewInfluenceScore`. Per-game `max_*` aggregations live in the `game_stats` CTE.
 
 Each review carries a single `reviewInfluenceScore` in `gold.factReviews` that weights its contribution to all downstream game-grain aggregates. Five signals contribute, each gated by a quality flag:
 
@@ -78,7 +78,7 @@ Per-game normalisation has a real CDF cost. When 15,505 new reviews land for an 
 
 ## Game-grain aggregation — influence-weighted
 
-> **Code:** `Labs/Lab02_Fabric/NB_Game_Scores_Gold.Notebook` — game-grain aggregation, prior derivation, MERGE into `gold.factGameScores`.
+> **Code:** `Fabric/NB_Game_Scores_Gold.Notebook` — game-grain aggregation, prior derivation, MERGE into `gold.factGameScores`.
 
 Game-grain aggregates in `gold.factGameScores` are influence-weighted, not unweighted means. Each review contributes proportionally to its `reviewInfluenceScore`:
 

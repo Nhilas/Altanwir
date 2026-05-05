@@ -26,7 +26,8 @@ The analytics is the fun side effect. The engineering is the point.
 | `docs/adrs/` | Architecture Decision Records. Numbered, durable, one decision per file. |
 | `docs/decisions/decisions.md` | Sanitized session takeaways. Cross-tool readable timeline of what got decided when. |
 | `docs/references/` | Implementation gotchas and quirks: `fabric_gotchas.md`, `spark-quirks.md`, `sentiment-vader-quirks.md`. |
-| `Labs/Lab02_Fabric/` | The Fabric implementation. Notebooks, pipelines, audit warehouse, lakehouse, sqlproj endpoint. |
+| `Fabric/` | The Fabric implementation. Notebooks, pipelines, audit warehouse, lakehouse, sqlproj endpoint. |
+| `Labs/Lab02_Fabric/` | Playground and tutorial notebooks (SteamAnalytics, tutorials, PoC work). |
 | `Labs/Lab00_duckdb` & `Labs/Lab01_dbt/` | Local dbt-on-DuckDB lab. Proof-of-concept only, not part of the Fabric pipeline. |
 | `journal/` | Hand-written notes by the author. Voice preserved, not authoritative. |
 | `Bahir/` | Personal Foam knowledge base. Theory and tool syntax notes. |

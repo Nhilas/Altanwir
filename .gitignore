@@ -9,7 +9,7 @@ dbt_packages/
 logs/
 
 ## Fabric
-Labs/Lab02_Fabric/01_Debugging
+Fabric/01_Debugging
 
 ## Accounts
 Accounts/

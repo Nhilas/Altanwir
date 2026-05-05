@@ -373,7 +373,7 @@ df_silver_game_stats_salted = df_silver_raw.groupBy("gameKey", "salt") \
         f.max("votesFunny").alias("max_votesFunny"),
         f.max("commentCount").alias("max_commentCount"),
         f.max("reactionCount").alias("max_reactionCount"),
-        f.max(f.when(f.col("hasCredibleText") == True, f.col("reviewLength"))).alias("max_reviewLength"),
+        f.max(f.when(f.col("hasCredibleText"), f.col("reviewLength"))).alias("max_reviewLength"),
         f.sum("playtimeAtReview").alias("sum_playtime"),
         f.count("reviewKey").alias("reviewCount")
     ) \

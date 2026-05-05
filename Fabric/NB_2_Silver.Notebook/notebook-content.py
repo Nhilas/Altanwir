@@ -28,7 +28,7 @@
 
 from pyspark.sql import functions as f
 from pyspark.sql.window import Window
-from delta.tables import *
+from delta.tables import DeltaTable
 
 # METADATA ********************
 

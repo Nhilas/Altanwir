@@ -556,7 +556,8 @@ else:
             except Exception as exc:
                 print(f"[{app_id}]\tMAIN: Thread generated an unhandled exception: {exc}")
             finally:
-                if 'conn' in locals(): conn.close()            
+                if 'conn' in locals():
+                    conn.close()
 
     print("MAIN: All threads completed. Orchestrator shutdown.")
 

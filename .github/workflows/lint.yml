@@ -17,4 +17,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install sqlfluff
-      - run: sqlfluff lint --config .config/.sqlfluff Fabric/IGDBAnalytics.SQLEndpoint/
+      - run: sqlfluff lint --config .config/.sqlfluff Fabric/IGDBAnalytics.SQLEndpoint/ Fabric/IGDBAudit.Warehouse/

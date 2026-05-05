@@ -2,7 +2,7 @@
 
 
 
-create   view gold.vw_dimPlatform as
+create view gold.vw_dimPlatform as
 select
     platformKey
     , platformType

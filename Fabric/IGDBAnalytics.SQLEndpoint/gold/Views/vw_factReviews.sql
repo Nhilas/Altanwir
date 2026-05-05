@@ -1,5 +1,5 @@
 -- Auto Generated (Do not modify) 3009F99104971AE4C1F5DD9B749702F05C92B50497ECA91CCE298755CD88F672
-create   view gold.vw_factReviews 
+create view gold.vw_factReviews
 as
 with cast_reviews as (
     select
@@ -53,14 +53,14 @@ with cast_reviews as (
             when playtimeSignal >= 0.34 then 'Regular'
             when playtimeSignal < 0.34 then 'Casual'
         end as playtimeBucket
-        , case 
-            when sentimentCompound is not NULL then
-                case
-                    when sentimentCompound >= 0.05 then 'Positive'
-                    when sentimentCompound <= -0.05 then 'Negative'
-                    else 'Neutral'
-                end
-            else NULL
+        , case
+            when sentimentCompound is not NULL
+                then
+                    case
+                        when sentimentCompound >= 0.05 then 'Positive'
+                        when sentimentCompound <= -0.05 then 'Negative'
+                        else 'Neutral'
+                    end
         end as sentimentLabel
     from cast_reviews
 )

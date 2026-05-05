@@ -1,13 +1,13 @@
 -- Auto Generated (Do not modify) 3B6BDE13977C384AEA5665EA1B410DE302D042F2DCFDD043CB2D7584EFEBFEF2
-create   view gold.vw_aggPlatforms
+create view gold.vw_aggPlatforms
 as
 with agg_scores as (
     select
         gp.platformType
         , gp.platformName
-        , sum(case when smoothedIGDBRating is not null then 1 else 0 end)                            as ratedGames
-        , sum(smoothedIGDBRating * IGDBSourceCount)        / nullif(sum(IGDBSourceCount), 0)         as weightedIGDBRating
-        , sum(IGDBSourceCount)                                                                       as IGDBSourceCount
+        , sum(case when smoothedIGDBRating is not null then 1 else 0 end) as ratedGames
+        , sum(smoothedIGDBRating * IGDBSourceCount) / nullif(sum(IGDBSourceCount), 0) as weightedIGDBRating
+        , sum(IGDBSourceCount) as IGDBSourceCount
         -- , sum(case when totalReviews is not null then 1 else 0 end)                                  as reviewedGames
         -- , sum(totalReviews)                                                                          as totalReviews
         -- , sum(sentimentReviews)                                                                      as sentimentReviews
@@ -25,7 +25,7 @@ with agg_scores as (
     from gold.factgamescores as gs
     inner join gold.vw_gamePlatforms as gp
         on gs.gameKey = gp.gameKey
-    where ( gp.platformType <> 'Unknown' and gp.platformName <> 'Unknown' )
+    where (gp.platformType <> 'Unknown' and gp.platformName <> 'Unknown')
     group by
         gp.platformType
         , gp.platformName
@@ -36,8 +36,8 @@ with agg_scores as (
         platformType
         , platformName
         , ratedGames
-        , round(weightedIGDBRating * 100, 2)                          as weightedIGDBRating
-        , round(IGDBSourceCount, 2)                                   as IGDBSourceCount
+        , round(weightedIGDBRating * 100, 2) as weightedIGDBRating
+        , round(IGDBSourceCount, 2) as IGDBSourceCount
 
         -- , reviewedGames
         -- , totalReviews

@@ -230,7 +230,7 @@ else:
 
 # CELL ********************
 
-print(f"Calculating global priors...")
+print("Calculating global priors...")
 
 review_prior_query = f"""
     with weighted_sentiment_review_prior as (

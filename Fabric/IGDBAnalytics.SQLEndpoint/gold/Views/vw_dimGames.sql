@@ -2,7 +2,7 @@
 
 
 
-create   view gold.vw_dimGames as
+create view gold.vw_dimGames as
 select
     gameKey
     , gameName

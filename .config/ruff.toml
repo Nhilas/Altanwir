@@ -1,5 +1,7 @@
+exclude = ["Labs", "Docs/exports"]
+
 [lint]
 ignore = ["E402"]
 
 [lint.per-file-ignores]
-"**/notebook-content.py" = ["F821"]
+"**/notebook-content.py" = ["F821", "F811"]

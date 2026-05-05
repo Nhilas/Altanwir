@@ -155,7 +155,7 @@ table_configs = [
 # API Request function
 def requestData(endpoint, limit, fields = [], exclude = []):
     
-    print(f'\tSTART: Processing source data')
+    print('\tSTART: Processing source data')
 
     tableURL  = f"{baseURL}{endpoint}"
     print(f'\t\tAPI: {tableURL}')

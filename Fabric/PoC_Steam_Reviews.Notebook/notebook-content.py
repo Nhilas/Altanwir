@@ -28,11 +28,9 @@ import time
 import datetime
 import uuid
 import notebookutils
-from notebookutils import mssparkutils
 import sys
 
 from pyspark.sql import functions as f
-from pyspark.sql import Row
 from pyspark.sql.types import IntegerType, StructType, StructField, StringType, LongType
 from tenacity import retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
 
@@ -1063,7 +1061,8 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             # This catches catastrophic thread failures that your worker's Try/Except missed
             print(f"MAIN: Thread for Game {app_id} generated an unhandled exception: {exc}")
         finally:
-            if 'conn' in locals(): conn.close()            
+            if 'conn' in locals():
+                conn.close()
 
 print("All threads completed. Orchestrator shutdown.")
 

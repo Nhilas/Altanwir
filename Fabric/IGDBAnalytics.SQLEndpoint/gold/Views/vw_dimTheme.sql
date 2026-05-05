@@ -2,7 +2,7 @@
 
 
 
-create   view gold.vw_dimTheme as
+create view gold.vw_dimTheme as
 select
     themeKey
     , themeName

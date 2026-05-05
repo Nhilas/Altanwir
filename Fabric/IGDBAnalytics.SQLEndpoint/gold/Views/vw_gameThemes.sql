@@ -2,7 +2,7 @@
 
 
 
-create   view gold.vw_gameThemes as
+create view gold.vw_gameThemes as
 with themes as (
     select distinct
         bt.gameKey
@@ -13,7 +13,7 @@ with themes as (
 )
 select
     g.gameKey
-    , coalesce(t.themeName, 'Unknown' ) as themeName
+    , coalesce(t.themeName, 'Unknown') as themeName
 from gold.vw_dimGames as g
 left join themes as t
     on g.gameKey = t.gameKey

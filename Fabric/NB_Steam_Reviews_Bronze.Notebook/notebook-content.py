@@ -36,7 +36,6 @@ import json
 
 from delta.tables import DeltaTable
 from pyspark.sql import functions as f
-from pyspark.sql import Row
 from pyspark.sql.window import Window
 from pyspark.sql.types import StructType, StructField, StringType, LongType, IntegerType
 
@@ -184,7 +183,7 @@ def update_audit (executions_list=[]):
             db_cursor.execute(update_query, batch_executions)
             conn.commit()
 
-            print(f"Batch updated successfully.")
+            print("Batch updated successfully.")
     except Exception as e:
         conn.rollback()
         print(f"Failed to update audit for batch {batch+1} of {max_batch//update_batch_size+1}: {e}")

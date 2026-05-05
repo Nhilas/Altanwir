@@ -3,7 +3,7 @@
 
 
 
-create   view gold.vw_gamePlatforms as
+create view gold.vw_gamePlatforms as
 with platforms as (
     select distinct
         bp.gameKey
@@ -16,7 +16,7 @@ with platforms as (
 select
     g.gameKey
     , coalesce(p.platformType, 'Unknown') as platformType
-    , coalesce(p.platformName, 'Unknown' ) as platformName
+    , coalesce(p.platformName, 'Unknown') as platformName
 from gold.vw_dimGames as g
 left join platforms as p
     on g.gameKey = p.gameKey

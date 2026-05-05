@@ -1,3 +1,12 @@
 [sqlfluff]
 dialect = tsql
 templater = raw
+max_line_length = 120
+exclude_rules = CP02, CP04, LT04, LT05, LT08, LT15, RF02, RF04, ST06
+
+[layout.indent]
+indent_unit = space
+tab_space_size = 4
+
+[layout.commas]
+comma_style = leading

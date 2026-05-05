@@ -3,7 +3,7 @@
 
 
 
-create   view gold.vw_gameCatalogue as
+create view gold.vw_gameCatalogue as
 select distinct
     g.gameKey
     , g.gameName

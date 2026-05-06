@@ -110,6 +110,16 @@ Currently learning, in rough order of fluency: SQL (fluent) → SparkSQL (fluent
 
 ---
 
+## Superpowers (optional methodology)
+
+Superpowers skills are installed globally at `C:\Users\Nhilas\.claude\skills\` and are available to Claude Code, Antigravity, and compatible agents. The methodology is **opt-in per session** — it does not activate automatically.
+
+To activate: invoke `/using-superpowers` at the start of a session. Each agent reads its own configuration for how to load the skill (Claude Code uses the `Skill` tool, Antigravity reads `.antigravity/workflows/using-superpowers.md`). Do not apply the methodology unless the user has activated it.
+
+**Instruction priority when active:** AGENTS.md / tool-specific config / direct user requests > Superpowers skills > default agent behavior.
+
+---
+
 ## Where to find agent-specific extensions
 
 This file is the shared baseline. Tool-specific overrides and personal context live in per-tool files:
@@ -123,7 +133,7 @@ This file is the shared baseline. Tool-specific overrides and personal context l
 
 If your tool has an extension file, read it after this one. If it doesn't, this file is sufficient.
 
-Session debriefs are dual-written: a full version in the agent's gitignored folder (`.claude/sessions/`, `.gemini/sessions/`, etc.), and a sanitized takeaways version in `docs/decisions/` (committed, cross-tool readable). Each agent should write to its own private folder. Custom skills like `/log-session` are responsible for the dual write.
+Session debriefs are written to `.claude/sessions/` — the shared session log directory used by all agents. Each session log is gitignored and captures internal context, not public documentation.
 
 ---
 

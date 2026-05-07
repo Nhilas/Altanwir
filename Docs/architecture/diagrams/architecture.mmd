@@ -1,10 +1,3 @@
-# Altanwir
-
-> Steam reviews × IGDB metadata · Medallion lakehouse on Microsoft Fabric · Bronze → Silver → Gold → Views.
-
-## Architecture
-
-```mermaid
 %%{init: {'themeVariables':{'fontSize':'18px'}, 'flowchart':{'curve':'basis', 'nodeSpacing':40, 'rankSpacing':60, 'subGraphTitleMargin':{'top':12,'bottom':12}}}}%%
 flowchart TB
 
@@ -140,33 +133,3 @@ flowchart TB
   style SLV  fill:#e2e8f080,stroke:#1f2937,stroke-width:2px
   style GLD  fill:#fef08a80,stroke:#78350f,stroke-width:2px
   style VWS  fill:#cffafe80,stroke:#155e75,stroke-width:2px
-```
-
-> Source: [`Docs/architecture/diagrams/architecture.mmd`](Docs/architecture/diagrams/architecture.mmd). Click the rendered diagram on GitHub to open the zoom/pan modal.
-
-### Notebook responsibilities
-
-| Notebook | Highlights |
-|---|---|
-| [`NB_Steam_Reviews`](Fabric/NB_Steam_Reviews.Notebook/notebook-content.py) | plain Jupyter (no Spark spin-up); `ThreadPool` concurrency; `tenacity` retry on rate-limits; `403` kill switch via `threading.Event`; high-water-mark cursor early-exit |
-| [`NB_Steam_Reviews_Bronze`](Fabric/NB_Steam_Reviews_Bronze.Notebook/notebook-content.py) | schema-sample on the richest landing folder; dedup `(app_id, steamid)` by `timestamp_updated`; MERGE on `recommendationid` |
-| [`NB_Steam_Reviews_Silver`](Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py) | parse JSON; 8-step text clean (unicode, ASCII art, BBCode, …); VADER sentiment as `pandas_udf` over Arrow batches; quality columns gate VADER eligibility |
-| [`NB_Steam_Reviews_Gold`](Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py) | CDF incremental from Silver; upsert pattern; update only when content hashes differ |
-| [`NB_Game_Scores_Gold`](Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py) | reads `gold.factReviews` + `silver.games` (IGDB ratings) + `silver.bridgeGame*`; per-game normalisation (`max_votesUp`, `playtimeSignal = percent_rank()`); empirical-Bayes shrinkage with data-derived priors |
-| [`NB_1_Bronze`](Fabric/NB_1_Bronze.Notebook/notebook-content.py) (IGDB) | config-driven 7-table loader; session-level `delta.schema.autoMerge`; `ArrayType → STRING` pre-write so the SQL endpoint can surface the columns |
-| [`NB_2_Silver`](Fabric/NB_2_Silver.Notebook/notebook-content.py) (IGDB) | dim build with hash-keyed MERGE; explode IGDB array fields into `bridgeGame*` many-to-many tables |
-
-### Pipelines
-
-- **`pl_Steam_API`** — runs hourly. `NB_Steam_Reviews` (plain Jupyter, no Spark cluster) reads the `loadReviews` snapshot view (top-N games + cursor + watermark), scrapes the Steam Storefront API, writes batched JSON to OneLake (`/Files/Steam/Reviews/{run_id}/{execution_id}/`), and logs each execution into `loadControlReviews` with `is_loaded = 0`.
-- **`pl_Steam_Reviews_Medallion_Incremental`** — runs daily. `NB_Steam_Reviews_Bronze` polls the audit warehouse for `is_loaded = 0` rows, MERGEs the corresponding JSON files into `bronze.steamReviews`, then flips the flag to `1`. Silver and Gold notebooks then run CDF-incremental, gated by the `versionControl` watermark.
-- **`pl_Steam_Reviews_Medallion`** — full-reload variant of the above; same notebook chain, different `load_type`.
-- **`pl_IGDB_Medallion`** — runs IGDB metadata reload. `NB_1_Bronze` ingests every IGDB endpoint we use (with `autoMerge` for schema evolution), then `NB_2_Silver` builds the dim + bridge tables.
-
-The audit warehouse (`IGDBAudit`, separate Fabric SQL Warehouse, `pyodbc` + PBI OAuth) is the control plane. Three audit tables: `loadOrchestratorReviews` (manual game priority queue), `loadControlReviews` (per-execution log + `is_loaded` flag), `versionControl` (CDF watermarks). The diagram surfaces `loadReviews`, a SQL view that joins the orchestrator and control tables to produce the cursor + watermark snapshot the scraper consumes. The whole control plane is reachable without a Spark cluster — load decisions don't pay the spin-up cost.
-
-`NB_Steam_Reviews_Silver` also broadcast-joins `silver.externalGames` to resolve `gameKey` for every Steam review (cross-pipeline lookup, not shown as an edge in the diagram).
-
----
-
-See [`Docs/architecture/overview.md`](Docs/architecture/overview.md) for the full architectural writeup, including layer contracts, the data model, engineering patterns with ADR links, and the run-time profile (71M reviews end-to-end in ~2h 28m on an 8-core trial cluster).

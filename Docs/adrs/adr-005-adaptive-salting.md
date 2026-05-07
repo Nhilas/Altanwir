@@ -1,8 +1,6 @@
 # ADR-005: Adaptive Salting on Hot Keys
 
-**Status:** Accepted
 **Date:** 2026-04-21
-**Project:** Altanwir — Steam Reviews × IGDB analytics on Microsoft Fabric
 
 ## Context
 

@@ -1,8 +1,6 @@
 # ADR-004: Percentile Columns Excluded from Fact Tables — Computed in Views
 
-**Status:** Accepted
 **Date:** 2026-04-16
-**Project:** Altanwir — Steam Reviews × IGDB analytics on Microsoft Fabric
 
 ## Context
 

@@ -1,12 +1,10 @@
----
-name: Fabric platform gotchas
-description: Known Microsoft Fabric Lakehouse limitations and workarounds discovered during Altanwir build — split Spark/SQL catalogs, Delta DDL restrictions
-type: reference
-originSessionId: 96b9a1a2-2602-445b-8de0-07bda3f0c54e
----
+# Fabric - references
+
+_Last updated: 2026-05-04_
+
 ## Spark catalog and SQL analytics endpoint are separate
 
-Fabric Lakehouse has two catalogs that share *tables* but not *views*:
+Fabric Lakehouse has two catalogs that share _tables_ but not _views_:
 
 - **Spark catalog** — where `spark.sql("CREATE VIEW ...")` registers views. Visible to Spark notebooks only.
 - **SQL analytics endpoint** — auto-exposes Delta tables from the Lakehouse. Does NOT see Spark views.
@@ -14,6 +12,7 @@ Fabric Lakehouse has two catalogs that share *tables* but not *views*:
 **Implication:** A view created via Spark SQL in a notebook is invisible to the SQL analytics endpoint. "Invalid object name" error when querying.
 
 **Workarounds:**
+
 - Create the view directly in the SQL analytics endpoint using T-SQL (different editor in Fabric UI).
 - OR materialize as a Delta table (both catalogs see tables).
 - OR accept duplication: define the view in both places.

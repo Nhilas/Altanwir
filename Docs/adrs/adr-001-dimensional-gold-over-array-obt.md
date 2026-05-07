@@ -1,8 +1,6 @@
 # ADR_003: Dimensional Gold over Array-Shaped OBT
 
-**Status:** Accepted
 **Date:** 2026-04-16
-**Project:** Altanwir — Steam Reviews × IGDB analytics on Microsoft Fabric
 
 ## Context
 

@@ -1,8 +1,6 @@
 # ADR-008: Store Wide, Expose Narrow via View
 
-**Status:** Accepted
 **Date:** 2026-04-16
-**Project:** Altanwir — Steam Reviews × IGDB analytics on Microsoft Fabric
 
 ## Context
 

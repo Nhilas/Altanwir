@@ -1,8 +1,6 @@
 # ADR-007: Per-Game Normalisation for `reviewInfluenceScore` Components
 
-**Status:** Accepted
 **Date:** 2026-04-18
-**Project:** Altanwir — Steam Reviews × IGDB analytics on Microsoft Fabric
 
 ## Context
 

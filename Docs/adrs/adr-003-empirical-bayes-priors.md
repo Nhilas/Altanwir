@@ -1,8 +1,6 @@
 # ADR-003: Empirical Bayes Priors Derived from Data
 
-**Status:** Accepted
 **Date:** 2026-04-18
-**Project:** Altanwir — Steam Reviews × IGDB analytics on Microsoft Fabric
 
 ## Context
 

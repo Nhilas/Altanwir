@@ -1,8 +1,6 @@
 # ADR-002: CDF Incremental with Audit Warehouse as Control Plane
 
-**Status:** Accepted
 **Date:** 2026-04-13
-**Project:** Altanwir — Steam Reviews × IGDB analytics on Microsoft Fabric
 
 ## Context
 

@@ -1,8 +1,6 @@
 # ADR-006: Liquid Clustering over Hive Partitioning and Z-Order
 
-**Status:** Accepted
 **Date:** 2026-04-14
-**Project:** Altanwir — Steam Reviews × IGDB analytics on Microsoft Fabric
 
 ## Context
 

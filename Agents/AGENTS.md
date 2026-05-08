@@ -29,8 +29,8 @@ The analytics is the fun side effect. The engineering is the point.
 | `Fabric/` | The Fabric implementation. Notebooks, pipelines, audit warehouse, lakehouse, sqlproj endpoint. |
 | `Labs/Lab02_Fabric/` | Playground and tutorial notebooks (SteamAnalytics, tutorials, PoC work). |
 | `Labs/Lab00_duckdb` & `Labs/Lab01_dbt/` | Local dbt-on-DuckDB lab. Proof-of-concept only, not part of the Fabric pipeline. |
-| `journal/` | Hand-written notes by the author. Voice preserved, not authoritative. |
 | `Bahir/` | Personal Foam knowledge base. Theory and tool syntax notes. |
+| `Bahir/Journal/` & `Bahir/Journal/Archive` | Hand-written notes by the author. Voice preserved, not authoritative. |
 
 If a fact is in conflict between files, the order of authority is: code > `overview.md` > `docs/adrs/` > `docs/decisions/` > everything else.
 
@@ -38,11 +38,11 @@ If a fact is in conflict between files, the order of authority is: code > `overv
 
 ## Scratch Space & Active Planning
 
-**`G:\Work\Altanwir-scratch\`** is an external workspace used for active planning, staging, and prompt generation. Check here frequently to maximize context cache hits for ongoing work:
+**`G:\Work\Altanwir-scratch\`** is the canonical workspace for active planning, staging, prompt generation, and brain-pipeline parking. Always check here for in-flight context.
 
-- **General Usage**: Contains a variety of helper items including plan files, intermediate steps, scratchpads, and session context.
-- **`plan-overview.md`**: The master plan directing the architecture documentation, structure, and repository framing. Always consult this when working on portfolio docs.
-- **`Architecture/` directory**: Houses intermediate artifacts referenced in `plan-overview.md`, specifically `silver-merged.md` (a consolidated fact base), and various prompt files (`merge-prompt.md`, `triage-prompt.md`, etc.) used to orchestrate documentation steps.
+- **Plans:** `plan-{slug}.md` files in the root. `plan-overview.md` is the master plan for the documentation/architecture work — consult when working on portfolio docs.
+- **Brain-pipeline parking lot:** `Tasks\Landing.md` (raw captures) and `Tasks\Processed.md` (organized by topic). Managed by the `/triage` skill — items are routed here automatically. Triage audit trail at `Tasks\Logs\Triage-YYYYMMDD.md`.
+- **Helper artifacts:** `Architecture/` contains intermediate documentation artifacts (`silver-merged.md`, `*-prompt.md` files).
 
 ---
 
@@ -102,11 +102,41 @@ Currently learning, in rough order of fluency: SQL (fluent) → SparkSQL (fluent
 
 **Trade-offs, not corrections.** When flagging a potential issue with a chosen approach, frame it as cost vs benefit — what this path buys, what it costs, what the alternative looks like. Not "you took a wrong turn."
 
-**Don't write the README.** The author writes the README and any other public-facing prose in his own voice. AI-written marketing copy is deliberately avoided.
-
 **Paste, don't invent.** When working with the codebase, prefer reading actual files over reconstructing from memory. Schemas, column names, and conventions in the repo are authoritative.
 
 **Tutor mode by default.** Socratic, options-and-syntax, not full solutions. Override is explicit ("just write it"). Setup and plumbing tasks (installs, configs, environment) are exempt — those get direct guidance.
+
+---
+
+## Environment
+
+Windows 10. Default to PowerShell for filesystem operations, file searching, listing, timestamps, and scripting. Use `Get-ChildItem`, `Get-Date`, `Select-String`, `Remove-Item`. Avoid `find` / `grep` / `ls` / `rm` unless explicitly inside WSL, Linux containers, Git Bash, or tools that require Bash.
+
+---
+
+## Exploration discipline
+
+When the user provides exact file paths, **read those files directly with the Read tool**. Do not run exploratory shell commands (`Get-ChildItem`, `Select-String`, `find`, `grep`, `cat`, `head`) to "look around" first. One Read call beats five shell calls when the path is already known. Same rule for notebooks, configs, and source files.
+
+---
+
+## Git operations
+
+For `git reset / revert / undo` requests: give the simplest 2-command answer first. Do not propose multi-step recovery sequences unless the user asks for safety nets.
+
+**Never push commits unprompted.** Wait for explicit user instruction before `git push`, opening PRs, or force-pushing. A merged commit on a local branch is not a push.
+
+---
+
+## Cost awareness
+
+If a task requires more than ~10 similar tool calls (e.g., adding GitHub issues to a project board one-by-one, polling a dashboard, looping MCP calls), **pause and propose a batched, scripted, or manual alternative first.** A single `gh` CLI loop in PowerShell, a JSON dump processed once, or a manual reference table usually beats N individual API calls.
+
+---
+
+## Context freshness
+
+At the start of any session that references `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `brain-pipeline.md`, or other convention files, **re-read them**. These files change often; stale cached assumptions cause real friction. Re-read also when the conversation shifts to a meaningfully different task.
 
 ---
 

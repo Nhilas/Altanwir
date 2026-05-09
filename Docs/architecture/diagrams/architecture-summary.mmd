@@ -1,0 +1,75 @@
+%%{init: {'themeVariables':{'fontSize':'18px'}, 'flowchart':{'curve':'basis', 'nodeSpacing':40, 'rankSpacing':60, 'subGraphTitleMargin':{'top':12,'bottom':12}}}}%%
+flowchart LR
+
+  subgraph SRC["<span style='font-size:24px;font-weight:700;color:#000'>Sources</span>"]
+    direction TB
+    SteamAPI(("Steam Reviews<br/>via Storefront API"))
+    IGDBAPI(("IGDB Game Metadata<br/>and Ratings via API"))
+  end
+
+  subgraph BRZ["<span style='font-size:24px;font-weight:700;color:#000'>Bronze</span>"]
+    direction TB
+    BSR[("schema-resilient<br/>raw JSON")]
+    BG[("autoMerge<br/>7 tables")]
+  end
+
+  subgraph SLV["<span style='font-size:24px;font-weight:700;color:#000'>Silver</span>"]
+    direction TB
+    SSR[("cleaned<br/>sentiment-scored")]
+    SG[("star schema<br/>dim + bridge")]
+  end
+
+  subgraph GLD["<span style='font-size:24px;font-weight:700;color:#000'>Gold</span>"]
+    direction TB
+    GFR[("per-game normalised<br/>influence-weighted")]
+    GFGS[("shrinkage estimation<br/>game-grain")]
+  end
+
+  subgraph VWS["<span style='font-size:24px;font-weight:700;color:#000'>Views</span>"]
+    direction TB
+    VFR[("presentation<br/>tier labels")]
+    VAGG[("agg roll-ups by<br/>theme, genre, platform")]
+  end
+
+  SteamAPI ==>|"multi-threaded<br/>hourly"| BSR
+  BSR      ==>|"CDF incremental"| SSR
+  SSR      ==>|"CDF incremental"| GFR
+  GFR      ==> GFGS
+
+  IGDBAPI  ==>|"config-driven<br/>merge-keyed"| BG
+  BG       ==> SG
+  SG       -.->|"gameKey<br/>resolution"| SSR
+  SG       ==> GFGS
+
+  GFR  --> VFR
+  GFGS --> VAGG
+  SG   --> VAGG
+  GFGS --> VFR
+
+
+  %% Pipeline color coding — rose=Steam, violet=IGDB, slate=cross-pipeline + views
+  linkStyle 0,1,2,3 stroke:#f43f5eaa,stroke-width:4.5px,color:#3b0d12
+  linkStyle 4,5 stroke:#7c3aedaa,stroke-width:4.5px,color:#4c1d95
+  linkStyle 7 stroke:#7c3aedee,stroke-width:4.5px,color:#4c1d95
+  linkStyle 6 stroke:#334155,stroke-width:2.5px,stroke-dasharray:5 5,color:#1c1917
+  linkStyle 8,9,10,11 stroke:#334155,stroke-width:2.5px,color:#1c1917
+
+  %% Node fills — saturated mid-tone, readable on white AND dark backgrounds
+  classDef source     fill:#93c5fd,stroke:#1e3a8a,stroke-width:2px,color:#000
+  classDef bronzeT    fill:#fdba74,stroke:#9a3412,stroke-width:2px,color:#000
+  classDef silverT    fill:#cbd5e1,stroke:#334155,stroke-width:2px,color:#000
+  classDef goldT      fill:#fbbf24,stroke:#854d0e,stroke-width:2px,color:#000
+  classDef viewT      fill:#5eead4,stroke:#0f766e,stroke-width:2px,color:#000
+
+  class SteamAPI,IGDBAPI source
+  class BSR,BG bronzeT
+  class SSR,SG silverT
+  class GFR,GFGS goldT
+  class VFR,VAGG viewT
+
+  %% Subgraph fills — 50% opacity of the node color
+  style SRC  fill:#93c5fd80,stroke:#1e3a8a,stroke-width:2px
+  style BRZ  fill:#fdba7480,stroke:#9a3412,stroke-width:2px
+  style SLV  fill:#cbd5e180,stroke:#334155,stroke-width:2px
+  style GLD  fill:#fbbf2480,stroke:#854d0e,stroke-width:2px
+  style VWS  fill:#5eead480,stroke:#0f766e,stroke-width:2px

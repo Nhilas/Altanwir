@@ -6,6 +6,34 @@
 
 Altanwir is a Medallion lakehouse (Bronze → Silver → Gold) on Microsoft Fabric over two source systems: the Steam Reviews API (custom multi-threaded extractor) and the IGDB metadata catalog. Four Data Factory pipelines orchestrate ingestion; a separate Fabric SQL Warehouse sits off the Spark cluster as the audit and load-control plane (see [adr-002](../adrs/adr-002-cdf-incremental-audit-warehouse.md)).
 
+### Diagram
+
+<a href="diagrams/architecture.png"><img src="diagrams/architecture.png" alt="Full pipeline architecture — sources, medallion layers, audit warehouse, control plane"></a>
+
+Source: [`diagrams/architecture.mmd`](diagrams/architecture.mmd).
+
+#### Legend
+
+**Arrow colors:**
+
+| Visual | Meaning |
+|---|---|
+| <img src="https://placehold.co/14x14/f43f5e/f43f5e.png" alt="rose"> rose | Steam medallion pipeline |
+| <img src="https://placehold.co/14x14/7c3aed/7c3aed.png" alt="violet"> violet | IGDB medallion pipeline |
+| <img src="https://placehold.co/14x14/334155/334155.png" alt="slate"> slate solid | View derivation (Gold → serving views) |
+| <img src="https://placehold.co/14x14/334155/334155.png" alt="slate"> slate dotted | Audit-warehouse + CDF-watermark connections (control plane) |
+
+**Node shapes:**
+
+| Visual | Meaning |
+|---|---|
+| `[("text")]` cylinder | Delta table |
+| `[["text"]]` double-bracket brick | Notebook |
+| `[/"text"/]` slashed parallelogram | File path |
+| `(("text"))` circle | External API |
+
+**Floating nodes.** `loadReviews`, `loadControlReviews`, and `versionControl` are audit tables living in the `IGDBAudit` Fabric Warehouse.
+
 ### Pipelines
 
 | Pipeline | Stages | Notes |
@@ -17,13 +45,35 @@ Altanwir is a Medallion lakehouse (Bronze → Silver → Gold) on Microsoft Fabr
 
 `NB_Game_Scores_Gold` is shared between the two terminal pipelines and idempotent (~30k rows, MERGE-on-hash) — re-running it from either chain costs nothing when no upstream rows changed. That property is what makes the two-pipeline split workable.
 
+In narrative form, with the operational detail per pipeline:
+
+- **`pl_Steam_API`** — runs hourly. `NB_Steam_Reviews` reads the `loadReviews` snapshot view (top-N games + cursor + watermark), scrapes the Steam Storefront API, writes batched JSON to OneLake (`/Files/Steam/Reviews/{run_id}/{execution_id}/`), and logs each execution into `loadControlReviews` with `is_loaded = 0`.
+- **`pl_Steam_Reviews_Medallion_Incremental`** — runs daily. `NB_Steam_Reviews_Bronze` polls the audit warehouse for `is_loaded = 0` rows, MERGEs the corresponding JSON files into `bronze.steamReviews`, then flips the flag to `1`. Silver and Gold notebooks then run CDF-incremental, gated by the `versionControl` watermark.
+- **`pl_Steam_Reviews_Medallion`** — full-reload variant of the above; same notebook chain, different `load_type`.
+- **`pl_IGDB_Medallion`** — runs IGDB metadata reload. `NB_1_Bronze` ingests every IGDB endpoint we use (with `autoMerge` for schema evolution), then `NB_2_Silver` builds the dim + bridge tables.
+
+`NB_Steam_Reviews_Silver` also broadcast-joins `silver.externalGames` to resolve `gameKey` for every Steam review (cross-pipeline lookup, not shown as an edge in the diagram). The audit-warehouse mechanics behind these pipelines are described in [§Control plane](#control-plane) below.
+
 ### Layer contracts
 
-- **Bronze — schema-resilient ingest.** Steam stores the raw payload as a single `review_json STRING`. IGDB ingests every source column (with explicit excludes via a config dict list), casts `ArrayType` to STRING pre-write, and sets `delta.schema.autoMerge.enabled = true` at session level so new fields land without DDL. Steam Bronze MERGEs only the batches the scraper has landed in `/Files/Steam/Reviews/`, polling `steam.loadControlReviews WHERE is_loaded = 0` for the read set — this decouples scrape cadence from ingest cadence (the scraper runs hourly throughout the day to stay well under Steam's rate limits; Bronze fires once daily and picks up whatever has accumulated).
-- **Silver — clean, enrich, score.** Reviews: parse JSON, English-only, dedup `(app_id, recommendationid)`, 8-step text-cleaning chain for VADER readiness, engineered quality columns (`isVaderEligible`, `hasCredibleText`, etc.), VADER as `pandas_udf`. IGDB: dim and bridge build, broadcast join to `externalGames` to resolve `gameKey` into Steam Reviews.
-- **Gold — derive, aggregate, serve.** Review-grain signal columns and per-game-normalised `reviewInfluenceScore`; game-grain influence-weighted aggregates with empirical-Bayes shrinkage. All metrics flat — no complex types ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)); presentation logic lives in serving views ([adr-004](../adrs/adr-004-percentiles-in-views.md), [adr-008](../adrs/adr-008-store-wide-expose-narrow.md)).
+- **Bronze — schema-resilient ingest.**
+  - Steam: raw payload preserved as a single `review_json STRING`; MERGEs only the batches the scraper has landed in `/Files/Steam/Reviews/`, polling `steam.loadControlReviews WHERE is_loaded = 0` for the read set.
+  - IGDB: explicit-exclude config dict, `ArrayType` cast to STRING pre-write, session-level `delta.schema.autoMerge.enabled = true` so new fields land without DDL.
+  - Cadence decoupled: scraper runs hourly (under Steam's rate limits); Bronze fires once daily and picks up whatever accumulated.
 
-**Common contract.** Every layer: MERGE keyed on natural or surrogate hash, `whenMatchedUpdateAll` (or explicit column mapping where run-id semantics matter) only when row hash differs. SCD Type 1, no destructive ops, and an `insert_run_id` / `update_run_id` lineage column on every row.
+- **Silver — clean, enrich, score.**
+  - Reviews: parse JSON → English-only → dedup `(app_id, recommendationid)` → 8-step text-cleaning chain for VADER readiness → engineered quality columns (`isVaderEligible`, `hasCredibleText`, etc.) → VADER as `pandas_udf`.
+  - IGDB: dim and bridge build; broadcast-join `externalGames` to resolve `gameKey` into Steam Reviews.
+
+- **Gold — derive, aggregate, serve.**
+  - Review-grain signal columns + per-game-normalised `reviewInfluenceScore`.
+  - Game-grain influence-weighted aggregates with empirical-Bayes shrinkage.
+  - All metrics flat — no complex types ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)); presentation logic in serving views ([adr-004](../adrs/adr-004-percentiles-in-views.md), [adr-008](../adrs/adr-008-store-wide-expose-narrow.md)).
+
+- **Common contract** (all layers).
+  - MERGE keyed on natural or surrogate hash; `whenMatchedUpdateAll` (or explicit column mapping where run-id semantics matter) only when the row hash differs.
+  - SCD Type 1, no destructive ops.
+  - `insert_run_id` / `update_run_id` lineage column on every row.
 
 ### Environments
 
@@ -43,13 +93,52 @@ Both lakehouses share the same Fabric trial F-capacity (one Spark cluster at a t
 
 The audit warehouse (`IGDBAudit`, separate Fabric SQL Warehouse, accessed via pyodbc + PBI OAuth) holds `loadControlReviews` (per-execution log), `versionControl` (CDF watermarks per Delta table), and `loadOrchestratorReviews` (game prioritisation queue). Watermark and orchestration reads do not require a Spark cluster — see [adr-002](../adrs/adr-002-cdf-incremental-audit-warehouse.md).
 
+### Notebook responsibilities
+
+- **[`NB_Steam_Reviews`](../../Fabric/NB_Steam_Reviews.Notebook/notebook-content.py)** — Steam API extractor.
+  - Plain Jupyter (`python3.11`), not Spark — no cluster spin-up for the API fetch.
+  - `ThreadPool` concurrency for parallel app-id scrapes.
+  - `tenacity` retry on rate-limits (`wait_random_exponential(multiplier=1, max=600)`, up to 5 attempts).
+  - HTTP 403 kill switch via `threading.Event` — aborts every worker thread on a single 403 (Steam treats 403 as IP-suspect; aborting before more requests fire is the difference between a cooldown and a ban).
+  - High-water-mark cursor early-exit — once the first review on a page predates the watermark, the rest of the page is older too; exit the batch loop instead of paging through known data.
+
+- **[`NB_Steam_Reviews_Bronze`](../../Fabric/NB_Steam_Reviews_Bronze.Notebook/notebook-content.py)** — raw-JSON ingest.
+  - Schema-samples on the richest landing folder before MERGE.
+  - Dedup `(app_id, steamid)` keeping the most recent by `timestamp_updated`.
+  - MERGE on `recommendationid` (Steam's stable per-review id).
+
+- **[`NB_Steam_Reviews_Silver`](../../Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py)** — clean + score.
+  - Parse JSON via `from_json` against the Bronze-sampled schema.
+  - 8-step text-cleaning chain: demojize → BBCode strip → ASCII-art / URL strip → heart-suit substitution → demoji-colon strip → whitespace collapse → trim.
+  - Engineered quality columns (`isVaderEligible`, `hasCredibleText`, `wordLengthRatio`, `asciiRatio`, `uniqueWordRatio`) gate VADER eligibility.
+  - VADER sentiment as `pandas_udf` over Arrow batches (eliminates per-row JVM↔Python serialisation overhead).
+
+- **[`NB_Steam_Reviews_Gold`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py)** — review-grain Gold.
+  - CDF-incremental read from Silver, gated by `versionControl` watermark.
+  - Upsert pattern: update only when content hash differs.
+
+- **[`NB_Game_Scores_Gold`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py)** — game-grain Gold.
+  - Reads `gold.factReviews` + `silver.games` (IGDB ratings) + `silver.bridgeGame*`.
+  - Per-game normalisation: `max_votesUp` and `playtimeSignal = percent_rank()` scoped per `gameKey`.
+  - Empirical-Bayes shrinkage with data-derived priors (`smoothedIGDBRating` uses prior 0.68; `voteRating` keeps 0.5 because it's a genuine indifference point).
+
+- **[`NB_1_Bronze`](../../Fabric/NB_1_Bronze.Notebook/notebook-content.py) (IGDB)** — config-driven 7-table loader.
+  - Single config dict drives 7 IGDB endpoints (games, genres, themes, platforms, platform_types, external_games, external_game_sources).
+  - Session-level `delta.schema.autoMerge.enabled = true` so new IGDB fields land without DDL.
+  - `ArrayType → STRING` pre-write so Fabric's SQL analytics endpoint can surface the columns ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)).
+
+- **[`NB_2_Silver`](../../Fabric/NB_2_Silver.Notebook/notebook-content.py) (IGDB)** — dim and bridge build.
+  - Hash-keyed MERGE on every dim table.
+  - Explode IGDB array fields into `bridgeGame{Genres, Themes, Platforms}` many-to-many tables.
+  - Resolve `gameKey` via broadcast-joined `externalGames` for cross-pipeline lookup into Steam Reviews.
+
 ## Data model
 
-Gold is dimensional, not array-OBT — Fabric's SQL analytics endpoint cannot surface complex types ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)). All facts are flat; M:M dimensions live in bridge views over Silver. The Gold layer stores wide and exposes narrow through serving views ([adr-008](../adrs/adr-008-store-wide-expose-narrow.md)).
+Original design intent was an array-OBT but Fabric's SQL analytics endpoint cannot surface complex types ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)). Decision was to go with a dimensional model instead.
+
+All facts are flat; M:M dimensions live in bridge views over Silver. The Gold layer stores wide and exposes narrow through serving views ([adr-008](../adrs/adr-008-store-wide-expose-narrow.md)).
 
 ### Schema map
-
-How each entity traverses the layers (until [issue #9](../diagrams/) lands a real diagram):
 
 | Entity | Bronze | Silver | Gold |
 |---|---|---|---|
@@ -152,5 +241,4 @@ Two categories: deliberate scope limits, and first-iteration code worth flagging
 ### First-iteration code, flagged honestly
 
 - **IGDB Bronze and Silver notebooks (`NB_1_Bronze`, `NB_2_Silver`) are the first Python written on this project.** They predate the patterns the Steam notebooks use — no `environment` parameter, no PARAMETERS-cell runtime overrides, ad-hoc credential handling. They work and shipped to prod; they're not the showcase code.
-- **Pre-public-push scrub is non-negotiable.** IGDB Bronze credentials (`Client-ID`, `Authorization: Bearer`) are hardcoded in the parameters cell. `CLAUDE.md` and `GEMINI.md` (personal-context files) were committed to history despite the gitignore. Both need sanitisation and a git-history rewrite before any public push.
 - **Architecture diagram** lives at [`diagrams/architecture.mmd`](diagrams/architecture.mmd) and is embedded in the repo `README.md` (Mermaid; renders natively on GitHub with click-to-zoom). The entity × layer table in §Data model remains the schema-detail companion to the diagram's flow view.

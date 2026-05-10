@@ -1,0 +1,16 @@
+gameName,weightedSentimentRating,weightedVoteRating,sentimentVoteAlignment,totalReviews,sentimentReviews,steamRatingLabel,avgPlaytimeAtReviewHours,pctNegativeSentiment,pctRefunded,pctBugReports,genres,themes
+A Short Hike,96.75,98.55,-1.8,14349,14231,Overwhelmingly Positive,4.39,2.62,0.16,0.86,"Adventure, Indie","Fantasy, Open world"
+Fields of Mistria,96.47,97.71,-1.24,21842,21718,Overwhelmingly Positive,37.52,3.16,0.24,7.05,"Indie, Role-playing (RPG), Simulator","Open world, Romance, Sandbox"
+Tiny Glade,96.21,97.19,-0.98,14206,14072,Very Positive,9.41,3.25,0.76,1.4,"Indie, Simulator",Sandbox
+Chants of Sennaar,95.86,97.71,-1.86,12935,12792,Overwhelmingly Positive,11.44,3.74,0.05,3.49,"Adventure, Indie, Puzzle","Fantasy, Mystery, Stealth"
+Tactical Breach Wizards,95.49,97.71,-2.23,10539,10509,Overwhelmingly Positive,17.03,4.29,0.22,2.36,"Adventure, Indie, Strategy, Tactical, Turn-based strategy (TBS)","Action, Comedy, Fantasy, Science fiction"
+Sheepy: A Short Adventure,95.44,98.17,-2.73,10917,10824,Overwhelmingly Positive,2.23,4.11,0.0,2.08,"Adventure, Indie, Platform","Fantasy, Horror, Mystery, Survival"
+The Room,95.15,97.08,-1.94,14761,14637,Very Positive,4.62,4.44,0.14,5.91,"Indie, Point-and-click, Puzzle",Fantasy
+The Room Two,95.05,97.14,-2.09,10396,10322,Very Positive,4.9,4.68,0.07,4.83,"Indie, Point-and-click, Puzzle","Fantasy, Mystery"
+Islanders,94.97,95.7,-0.73,10550,10452,Very Positive,12.13,4.9,0.75,1.54,"Indie, Puzzle, Strategy, Turn-based strategy (TBS)",Sandbox
+Unpacking,94.96,93.84,1.12,25585,25309,Very Positive,7.94,4.83,0.25,0.89,"Indie, Point-and-click, Puzzle, Simulator",Drama
+Dorfromantik,94.9,96.32,-1.42,16539,16410,Very Positive,24.69,4.7,0.32,1.1,"Card & Board Game, Indie, Puzzle, Simulator, Strategy, Turn-based strategy (TBS)","Non-fiction, Sandbox"
+Abzu,94.86,93.75,1.11,12625,12524,Very Positive,4.03,5.0,0.7,1.77,"Adventure, Indie, Puzzle","Action, Educational, Fantasy"
+Our Life: Beginnings & Always,94.7,98.41,-3.71,11259,11155,Overwhelmingly Positive,42.54,4.98,0.0,0.83,"Indie, Simulator, Visual Novel","Comedy, Romance"
+Townscaper,94.61,95.92,-1.3,11207,11071,Very Positive,7.97,4.81,0.32,1.4,"Indie, Simulator",Sandbox
+Strange Horticulture,94.59,95.36,-0.77,10168,10106,Very Positive,8.52,5.19,0.12,2.76,"Adventure, Puzzle, Role-playing (RPG), Simulator",Mystery

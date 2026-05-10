@@ -1,0 +1,6 @@
+volume_bucket,games_rated_both,pct_same_tier,pct_vote_tier_higher,pct_sentiment_tier_higher
+1: 0-99,3644,46.3,19.8,33.9
+2: 100-999,6721,51.0,21.2,27.8
+3: 1k-9.9k,3874,48.3,33.0,18.7
+4: 10k-99k,1044,37.8,51.4,10.7
+5: 100k+,112,28.6,65.2,6.3

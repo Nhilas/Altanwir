@@ -1,0 +1,11 @@
+gameName,total_upvotes,total_reviews,avg_votes_per_review,weightedSentimentRating,weightedVoteRating,steamRatingLabel
+Counter-Strike: Global Offensive,1905582,2514949,0.76,76.41,84.82,Very Positive
+Helldivers 2,983412,794791,1.24,77.32,81.69,Very Positive
+No Man's Sky,883821,226005,3.91,86.41,85.49,Very Positive
+Grand Theft Auto V,881470,637596,1.38,77.83,80.85,Very Positive
+PUBG: Battlegrounds,860107,442553,1.94,66.19,64.49,Mixed
+DayZ,859370,206283,4.17,70.13,74.91,Mostly Positive
+Fallout 4,801926,256765,3.12,79.87,78.91,Mostly Positive
+Cyberpunk 2077,793466,394981,2.01,86.74,89.38,Very Positive
+Elden Ring,716724,555781,1.29,83.06,93.93,Very Positive
+Battlefield 2042,709638,132589,5.35,57.32,46.93,Mixed

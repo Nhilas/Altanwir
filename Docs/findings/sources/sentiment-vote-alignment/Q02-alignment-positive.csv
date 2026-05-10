@@ -1,0 +1,11 @@
+gameName,sentimentVoteAlignment,totalReviews,weightedSentimentRating,weightedVoteRating,steamRatingLabel,avgPlaytimeAtReviewHours,avgWordCount,pctNegativeSentiment,pctBugReports,pctEarlyAccess,pctRefunded,genres,themes
+Starfield,16.64,115564,73.54,56.9,Mixed,85.93,93,24.08,15.3,0.0,0.43,"Adventure, Role-playing (RPG), Shooter","Action, Open world, Sandbox, Science fiction"
+Borderlands 4,11.87,54350,75.5,63.63,Mixed,36.24,66,22.97,22.73,0.0,1.64,"Adventure, Role-playing (RPG), Shooter","Action, Science fiction"
+Ark: Survival Ascended,10.67,57523,71.16,60.5,Mixed,173.14,45,24.29,26.01,100.0,2.39,"Adventure, Indie, Role-playing (RPG), Shooter, Simulator","Action, Open world, Sandbox, Science fiction, Survival"
+Battlefield 2042,10.39,132589,57.32,46.93,Mixed,45.04,44,35.63,16.18,0.0,1.18,Shooter,"Action, Warfare"
+Lost Ark,9.87,104658,77.28,67.41,Mixed,275.11,45,19.22,3.33,0.0,0.01,"Adventure, Hack and slash/Beat 'em up, Role-playing (RPG)","Action, Fantasy"
+Monster Hunter Wilds,8.86,115183,75.98,67.12,Mixed,70.45,65,21.39,14.56,0.0,0.54,"Adventure, Hack and slash/Beat 'em up, Role-playing (RPG)","Action, Fantasy, Open world"
+Apex Legends,7.07,60607,53.27,46.21,Mixed,446.03,22,34.38,3.9,0.0,0.0,"Shooter, Tactical","Action, Science fiction"
+Path of Exile 2,4.17,122161,75.66,71.49,Mostly Positive,144.56,49,19.92,8.47,100.0,0.29,"Adventure, Hack and slash/Beat 'em up, Role-playing (RPG)","Action, Fantasy"
+Total War: Warhammer III,2.45,81690,70.17,67.72,Mixed,266.61,51,24.98,14.35,0.0,0.19,"Real Time Strategy (RTS), Strategy","Action, Fantasy, Warfare"
+PUBG: Battlegrounds,1.7,442553,66.19,64.49,Mixed,308.74,27,25.31,11.21,21.72,0.25,Shooter,"Action, Warfare"

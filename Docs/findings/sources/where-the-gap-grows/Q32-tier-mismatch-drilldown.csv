@@ -1,0 +1,10 @@
+pattern,gameName,totalReviews,sentiment,s_tier,vote,v_tier,gap,pct_bug_mentions,pct_early_access,pct_refunded,genres,themes
+A. same tier,The Elder Scrolls V: Skyrim - Special Edition,212477,87.42,A,91.66,A,-4.25,6.15,0.0,0.13,"Adventure, Role-playing (RPG)","Action, Fantasy, Historical, Open world, Sandbox"
+A. same tier,Rocket League,300320,82.82,B,85.21,B,-2.38,1.91,0.0,0.18,"Indie, Racing, Sport","Action, Science fiction"
+A. same tier,Sid Meier's Civilization VI,146912,84.6,B,84.62,B,-0.01,5.16,0.0,0.15,"Simulator, Strategy, Turn-based strategy (TBS)","4X (explore, expand, exploit, and exterminate), Fantasy, Historical"
+B. vote tier higher,Helldivers 2,794791,77.32,C,81.69,B,-4.37,11.66,0.0,0.42,"Shooter, Tactical","Action, Science fiction"
+B. vote tier higher,Left 4 Dead 2,309333,85.28,B,97.32,S,-12.04,1.09,0.0,0.07,Shooter,"Action, Horror, Survival"
+B. vote tier higher,The Binding of Isaac: Rebirth,156024,81.24,B,96.82,S,-15.59,1.08,0.0,0.16,"Adventure, Arcade, Indie, Puzzle, Role-playing (RPG), Shooter","Action, Comedy, Fantasy, Horror"
+C. sentiment tier higher,New World: Aeternum,173355,74.79,C,65.7,D,9.09,12.79,0.0,0.22,"Adventure, Role-playing (RPG)","Action, Sandbox"
+C. sentiment tier higher,Halo Infinite,141793,73.52,C,67.08,D,6.44,7.99,0.0,0.01,"Adventure, Shooter","Action, Open world, Science fiction, Warfare"
+C. sentiment tier higher,Black Desert,100991,78.64,B,72.51,C,6.13,4.14,0.0,0.47,"Adventure, Hack and slash/Beat 'em up, Role-playing (RPG), Strategy","Action, Fantasy, Historical, Open world, Sandbox"

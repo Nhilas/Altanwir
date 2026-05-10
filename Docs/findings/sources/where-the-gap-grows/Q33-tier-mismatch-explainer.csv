@@ -1,0 +1,4 @@
+pattern,gameName,totalReviews,sentiment,s_tier,vote,v_tier,gap
+A. same tier,Cities: Skylines,125939,89.01,A,92.81,A,-3.8
+B. vote tier higher,People Playground,180949,79.54,B,98.39,S,-18.84
+C. sentiment tier higher,Battlefield 2042,132589,57.32,D,46.93,F,10.39

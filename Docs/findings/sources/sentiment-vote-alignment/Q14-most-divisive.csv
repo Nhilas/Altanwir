@@ -1,0 +1,11 @@
+gameName,sentimentVoteAlignment,abs_alignment,totalReviews,weightedSentimentRating,weightedVoteRating,steamRatingLabel,avgPlaytimeAtReviewHours,pctNegativeSentiment,pctBugReports,pctEarlyAccess
+Fear & Hunger,-34.24,34.24,11480,58.69,92.93,Very Positive,17.64,38.82,5.63,0.0
+Ratshaker,-32.44,32.44,2889,59.53,91.97,Very Positive,1.93,40.91,1.04,0.0
+Godus,30.36,30.36,5457,57.93,27.57,Mostly Negative,31.2,37.68,9.22,100.0
+RollerCoaster Tycoon World,29.68,29.68,3184,62.43,32.75,Mostly Negative,17.99,34.7,37.91,39.01
+Condemned: Criminal Origins,-28.76,28.76,2687,58.52,87.28,Very Positive,8.23,39.6,7.03,0.0
+Fear & Hunger 2: Termina,-28.13,28.13,8202,68.3,96.43,Very Positive,32.78,29.92,3.86,0.0
+Amnesia: The Dark Descent,-27.68,27.68,20723,67.38,95.06,Very Positive,14.67,31.23,2.22,0.0
+Outlast,-27.54,27.54,38799,67.84,95.38,Very Positive,10.42,29.78,1.98,0.0
+Doom 64,-27.45,27.45,5262,65.25,92.69,Very Positive,9.37,33.07,2.85,0.0
+Starforge,27.18,27.18,6904,46.5,19.32,Overwhelmingly Negative,9.29,47.84,15.24,22.74

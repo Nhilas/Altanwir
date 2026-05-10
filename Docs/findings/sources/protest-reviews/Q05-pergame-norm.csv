@@ -1,0 +1,11 @@
+bucket,gameName,review_count,max_votes_up,avg_votes_up,max_review_length
+high-volume,Counter-Strike: Global Offensive,2514949,20454,0.76,262144
+high-volume,Dota 2,823817,13971,0.73,17374
+high-volume,Helldivers 2,794791,34139,1.24,31679
+high-volume,Rainbow Six Siege,764759,7989,0.8,57867
+high-volume,Team Fortress 2,728364,8949,0.94,65735
+low-volume,Tanzia,50,51,3.64,7757
+low-volume,The Rivers of Alice: Extended Version,50,23,4.3,2240
+low-volume,Wonder Boy Returns Remix,50,53,4.48,3250
+low-volume,Rhem I SE: The Mysterious Land,50,81,4.16,4676
+low-volume,Deadcraft,50,145,14.12,3086

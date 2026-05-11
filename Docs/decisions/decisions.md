@@ -2,7 +2,7 @@
 
 _Lightweight architectural calls that don't warrant a full ADR but are worth recording. Each row captures a real tradeoff or non-obvious choice._
 
-_Last updated: 2026-05-04_
+_Last updated: 2026-05-11_
 
 | # | Decision | Rationale | Trade-off | Related |
 |---|---|---|---|---|
@@ -16,3 +16,4 @@ _Last updated: 2026-05-04_
 | D-08 | Labelling / presentation logic in serving views, not ETL | Labels are presentation — Capital Case `sentimentLabel`, S–F tiers, Steam-style volume labels | Gained: label changes don't require ETL reruns. Lost: a view layer is required for any consumer | [ADR-008](../adrs/adr-008-store-wide-expose-narrow.md) |
 | D-09 | View DDLs committed to Git as source of truth | Trial expiry — SQL endpoint views couldn't be materialised via Spark (separate catalogs) | Gained: views reproducible from DDL. Lost: no parquet of view results; consumers need a running SQL engine | [overview.md §What's not in the repo](../architecture/overview.md#whats-not-in-the-repo) |
 | D-10 | Bronze `steamReviews` stores review as single `review_json STRING` | Steam payloads evolve; schema-resilient Bronze avoids DDL changes when fields are added | Gained: Bronze absorbs any Steam API schema change; parsing deferred to Silver `from_json`. Lost: Bronze not field-queryable via SQL endpoint without a view | [overview.md §Schema resilience](../architecture/overview.md#schema-resilience) |
+| D-11 | VADER lexicon scorer over LLM-based sentiment | 71M-review scale; LLM API/inference costs and infra overhead prohibitive. VADER is deterministic, lexicon-based, suited for short social-media-style text; ran in ~89m on the 8-core trial via `pandas_udf`. The 8-step text-cleaning chain (BBCode strip, demojize, ASCII-art strip, heart-suit substitution, demoji-colon strip, whitespace collapse, trim) feeds engineered eligibility gates (`isVaderEligible`, `hasCredibleText`, `containsBugReport`) that drop noisy reviews before scoring | Gained: cheap, fast, reproducible, no model-serving dependency. Lost: misses sarcasm/irony; lexicon-bounded; English-only; requires multi-step text cleaning to handle BBCode, emoji, ASCII art, heart-suit censorship | [scoring-model.md §VADER and eligibility](../architecture/scoring-model.md#vader-and-eligibility) |

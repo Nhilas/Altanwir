@@ -106,7 +106,7 @@ The Peppa Pig snippet in full:
 ⣿⡿⠋⠁⠀⠀⢀⣀⣠⡴⣸⣿⣇⡄⠀⠀⠀⠀⢀⡿⠄⠙⠛⠀⣀⣠⣤⣤⠄
 ```
 
-I am just as confused.
+*I am just as confused.*
 
 Influence answers "how much should this review's vote count for the game total." Sentiment eligibility answers "does the text deserve to be scored at all." The two gates run independently.
 

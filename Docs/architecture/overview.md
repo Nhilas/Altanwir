@@ -1,6 +1,6 @@
 # Altanwir — architecture overview
 
-> **Altanwir** — a production-shaped Medallion lakehouse on Microsoft Fabric over Steam reviews × IGDB. **71M reviews ingested end-to-end in 2h 28m** on an 8-core trial cluster; CDF incremental thereafter (15,505 new reviews land in under 3 minutes). The headline analytical finding: text sentiment and recommend-votes diverge by up to ±20 points — Ultrakill players write angry-positive reviews; Starfield players are politely upvoted. The headline engineering story: **Fabric's SQL analytics endpoint can't surface complex types**, which forced dimensional modelling all the way down ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)).
+> **Altanwir** — a production-shaped Medallion lakehouse on Microsoft Fabric over Steam reviews × IGDB. **71M reviews ingested end-to-end in 2h 28m** on an 8-core trial cluster; CDF incremental thereafter (15,505 new reviews land in under 3 minutes). The headline analytical finding: text sentiment and recommend-votes diverge by up to ±20+ points — Doom players write angry-positive reviews; Starfield players are politely upvoted. The headline engineering story: **Fabric's SQL analytics endpoint can't surface complex types**, which forced dimensional modelling all the way down ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)).
 
 ## Architecture
 
@@ -47,7 +47,7 @@ Source: [`diagrams/architecture.mmd`](diagrams/architecture.mmd).
 
 In narrative form, with the operational detail per pipeline:
 
-- **`pl_Steam_API`** — runs hourly. `NB_Steam_Reviews` reads the `loadReviews` snapshot view (top-N games + cursor + watermark), scrapes the Steam Storefront API, writes batched JSON to OneLake (`/Files/Steam/Reviews/{run_id}/{execution_id}/`), and logs each execution into `loadControlReviews` with `is_loaded = 0`.
+- **`pl_Steam_API`** — runs hourly. `NB_Steam_Reviews` reads the `vw_loadReviews` snapshot view (top-N games + cursor + watermark), scrapes the Steam Storefront API, writes batched JSON to OneLake (`/Files/Steam/Reviews/{run_id}/{execution_id}/`), and logs each execution into `loadControlReviews` with `is_loaded = 0`.
 - **`pl_Steam_Reviews_Medallion_Incremental`** — runs daily. `NB_Steam_Reviews_Bronze` polls the audit warehouse for `is_loaded = 0` rows, MERGEs the corresponding JSON files into `bronze.steamReviews`, then flips the flag to `1`. Silver and Gold notebooks then run CDF-incremental, gated by the `versionControl` watermark.
 - **`pl_Steam_Reviews_Medallion`** — full-reload variant of the above; same notebook chain, different `load_type`.
 - **`pl_IGDB_Medallion`** — runs IGDB metadata reload. `NB_1_Bronze` ingests every IGDB endpoint we use (with `autoMerge` for schema evolution), then `NB_2_Silver` builds the dim + bridge tables.
@@ -109,18 +109,19 @@ The audit warehouse (`IGDBAudit`, separate Fabric SQL Warehouse, accessed via py
 
 - **[`NB_Steam_Reviews_Silver`](../../Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py)** — clean + score.
   - Parse JSON via `from_json` against the Bronze-sampled schema.
-  - 8-step text-cleaning chain: demojize → BBCode strip → ASCII-art / URL strip → heart-suit substitution → demoji-colon strip → whitespace collapse → trim.
+  - 8-step text-cleaning chain: demojize → BBCode + non-ASCII strip → ASCII-art / URL strip → heart-suit long-run substitution → heart-suit short-run substitution → demoji-colon strip → underscore + whitespace collapse → trim.
   - Engineered quality columns (`isVaderEligible`, `hasCredibleText`, `wordLengthRatio`, `asciiRatio`, `uniqueWordRatio`) gate VADER eligibility.
   - VADER sentiment as `pandas_udf` over Arrow batches (eliminates per-row JVM↔Python serialisation overhead).
 
 - **[`NB_Steam_Reviews_Gold`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py)** — review-grain Gold.
   - CDF-incremental read from Silver, gated by `versionControl` watermark.
+  - Per-game normalisation: `max_votesUp` (and other community maxima), `max_reviewLength`, and `playtimeSignal = percent_rank()` all scoped per `gameKey` — feeds the five-signal blend that produces `reviewInfluenceScore`.
   - Upsert pattern: update only when content hash differs.
 
 - **[`NB_Game_Scores_Gold`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py)** — game-grain Gold.
-  - Reads `gold.factReviews` + `silver.games` (IGDB ratings) + `silver.bridgeGame*`.
-  - Per-game normalisation: `max_votesUp` and `playtimeSignal = percent_rank()` scoped per `gameKey`.
-  - Empirical-Bayes shrinkage with data-derived priors (`smoothedIGDBRating` uses prior 0.68; `voteRating` keeps 0.5 because it's a genuine indifference point).
+  - Reads `gold.factReviews` + `silver.games` (IGDB ratings). Bridge tables are consumed downstream by aggregate views, not here.
+  - Influence-weighted aggregation (`weightedSentiment`, `weightedVote`) over `gold.factReviews`.
+  - Empirical-Bayes shrinkage with data-derived priors (`smoothedIGDBRating` uses prior ~0.67; `voteRating` keeps 0.5 because it's a genuine indifference point).
 
 - **[`NB_1_Bronze`](../../Fabric/NB_1_Bronze.Notebook/notebook-content.py) (IGDB)** — config-driven 7-table loader.
   - Single config dict drives 7 IGDB endpoints (games, genres, themes, platforms, platform_types, external_games, external_game_sources).
@@ -160,12 +161,12 @@ All facts are flat; M:M dimensions live in bridge views over Silver. The Gold la
 | Layer | Column | Logic |
 |---|---|---|
 | Bronze | `review_json` | Raw Steam API payload, stored as `STRING` (schema-resilient) |
-| Silver | `reviewRaw` | `review_json:review` extracted, dedup on `(app_id, recommendationid)`, English-only |
+| Silver | `reviewRaw` | parsed from `review_json`, dedup on `(app_id, steamid)` keeping most recent by `timestamp_updated`, English-only |
 | Silver | `reviewCleaned` | 8-step regex chain: demojize → BBCode strip → ASCII-art / URL strip → heart-suit substitution → demoji-colon strip → whitespace collapse → trim |
-| Silver | `isVaderEligible` | `len > 1 AND (asciiRatio ≥ 0.15 OR uniqueWordRatio = 1) AND uniqueWordRatio ≥ 0.1 AND hasCredibleText` |
+| Silver | `isVaderEligible` | `reviewLength > 1 AND (asciiRatio ≥ 0.15 OR uniqueWordRatio = 1) AND uniqueWordRatio ≥ 0.1 AND hasCredibleText` |
 | Silver | `sentimentCompound` | VADER `pandas_udf` returning `struct{pos, compound, neu, neg}`; NULL when not eligible |
-| Gold (review) | `sentimentSignal` | `abs(sentimentCompound)` when eligible; **NULL otherwise — no fallback to `voteSignal`** |
-| Gold (review) | `reviewInfluenceScore` | Weighted blend of `communitySignal`, `lengthSignal`, `emotionalSignal`, `playtimeSignal`, `sentimentSignal`; per-game normalised ([adr-007](../adrs/adr-007-per-game-normalisation.md)) |
+| Gold (review) | `sentimentSignal` | `abs(sentimentCompound)` when eligible; **NULL otherwise — no fallback to `voteDirection`** |
+| Gold (review) | `reviewInfluenceScore` | Weighted blend of `communitySignal`, `lengthSignal`, `emotionalSignal`, `playtimeSignal`, `sentimentSignal`. Component signals are per-game-normalised (community/length via per-game max, playtime via per-game `percent_rank`); the blend itself uses an adaptive denominator over active gates ([adr-007](../adrs/adr-007-per-game-normalisation.md)) |
 
 > **Scoring logic** — VADER eligibility and text-cleaning rationale, the `reviewInfluenceScore` formula, influence-weighted aggregation, Bayesian shrinkage with empirical priors, and tier calibration — lives in [scoring-model.md](scoring-model.md), an analytical-engineering subdocument.
 
@@ -185,7 +186,7 @@ Three categories live here. **ADR-linked** items have full context at the linked
 
 ### Performance under scale
 
-- **Liquid clustering on Bronze, Silver, and Gold review** — cluster keys match the dominant predicate (Bronze: `recommendationid` for MERGE; Silver: `reviewKey` for MERGE; Gold review: `gameKey` for `factGameScores` group-by). 15k skewed `app_id` values — Hive partitioning would create 15k tiny-file folders, Z-Order rewrites all files on every OPTIMIZE. _([adr-006](../adrs/adr-006-liquid-clustering.md))_
+- **Liquid clustering on Bronze, Silver, and Gold review** — cluster keys match the dominant predicate (Bronze: `recommendationid` for MERGE; Silver: `reviewKey` for MERGE; Gold review `factReviews`: `gameKey`, because the downstream `factGameScores` aggregation groups by `gameKey`). 15k skewed `app_id` values — Hive partitioning would create 15k tiny-file folders, Z-Order rewrites all files on every OPTIMIZE. _([adr-006](../adrs/adr-006-liquid-clustering.md))_
 - **Adaptive salting on hot keys** — `salt = floor(rand() * 32)` only when a `gameKey` exceeds 50,000 reviews. Counter-Strike (2.5M reviews) creates pathological GROUP BY skew; uniform salting wastes shuffle on cold keys. Salting reduces — doesn't eliminate — skew: post-salting the `factReviews` MERGE still shows a 24× max/median per-task ratio in Spark UI. _([adr-005](../adrs/adr-005-adaptive-salting.md))_
 - **OPTIMIZE in a separate scheduled maintenance notebook** — inlining with MERGE creates locking contention; liquid clustering only rewrites unclustered files since the last run anyway. _([decisions.md](../decisions/decisions.md))_
 - **VADER as `pandas_udf` over Arrow batches** — eliminates JVM↔Python serialisation overhead per row; ran 71M reviews in ~89m on the 8-core trial. The DAG shows two `ArrowEvalPython` stages back-to-back: demoji UDF, then VADER UDF.
@@ -197,7 +198,7 @@ Three categories live here. **ADR-linked** items have full context at the linked
 - **Dimensional Gold over array-OBT** — Fabric's SQL endpoint can't surface complex types; arrays would be invisible to T-SQL and Power BI Direct Lake. _([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md))_
 - **Store wide, expose narrow** — full precision lives in the fact, presentation moves to the view. Adding a Delta column is expensive; adding a view column is cheap. _([adr-008](../adrs/adr-008-store-wide-expose-narrow.md))_
 - **Percentile and tier columns excluded from facts** — percentiles are non-additive and cohort-dependent; a `WHERE` against a percentile-bearing fact silently produces wrong percentile-of-percentile. _([adr-004](../adrs/adr-004-percentiles-in-views.md))_
-- **Empirical Bayes priors derived from data** — `smoothedIGDBRating` flatlined at 57–62 with a textbook 0.5 prior because the actual population mean is 0.68; `voteRating` keeps 0.5 because it's a genuine indifference point. Math lives in [scoring-model.md](scoring-model.md). _([adr-003](../adrs/adr-003-empirical-bayes-priors.md))_
+- **Empirical Bayes priors derived from data** — `smoothedIGDBRating` flatlined at 57–62 with a textbook 0.5 prior because the actual population mean is ~0.67; `voteRating` keeps 0.5 because it's a genuine indifference point. Math lives in [scoring-model.md](scoring-model.md). _([adr-003](../adrs/adr-003-empirical-bayes-priors.md))_
 - **Per-game normalisation for `reviewInfluenceScore` components** — Counter-Strike's absolute max would dwarf niche games; `max_votesUp` scoped per `gameKey` keeps small-audience reviews comparable within their own context. _([adr-007](../adrs/adr-007-per-game-normalisation.md))_
 - **Tier and label columns dropped from aggregate-grain views** — at aggregate grain everything averages to A/B; raw rating numbers carry more cross-genre information. _([decisions.md](../decisions/decisions.md))_
 - **Platform aggregation scoped to IGDB only** — no canonical IGDB↔Steam platform mapping exists, and refusing to fabricate one is the call. _([decisions.md](../decisions/decisions.md))_
@@ -222,7 +223,7 @@ Three categories live here. **ADR-linked** items have full context at the linked
 
 Reference docs in [Docs/references/](../references/) carry the actionable detail. These pointers exist so a reader of `overview.md` knows what's there:
 
-- **`sentimentSignal` NULL-no-fallback contract** — downstream weighted aggregates need `NULLIF` guards; a fallback to vote signal would muddle two semantically distinct signals. _([references/sentiment-vader-quirks.md](../references/sentiment-vader-quirks.md))_
+- **`sentimentSignal` NULL-no-fallback contract** — downstream weighted aggregates need `NULLIF` guards; a fallback to `voteDirection` would muddle two semantically distinct signals. _([references/sentiment-vader-quirks.md](../references/sentiment-vader-quirks.md))_
 - **VADER eligibility logic** — Steam mislabels non-English reviews as English; the eligibility flags filter emoji-only, template-heavy, and no-space reviews before VADER runs. _([references/sentiment-vader-quirks.md](../references/sentiment-vader-quirks.md))_
 - **`table_changes()` Spark SQL parser workaround** — column refs in subqueries attach to the outer table, not `table_changes()`; aliasing doesn't help. Workaround: collect to Python, build an explicit IN-list. _([references/spark-quirks.md](../references/spark-quirks.md))_
 - **Liquid-clustering DDL ordering** — `CLUSTER BY (col)` must come before `TBLPROPERTIES` at create time; `ALTER TABLE ... CLUSTER BY` is unsupported in Fabric — clusters are immutable post-create. _([references/fabric_gotchas.md](../references/fabric_gotchas.md))_

@@ -129,7 +129,7 @@ Idling to Rule the Gods at 81,015.5 hours fits the game's mechanic: it's an incr
 ## Sources
 
 - Queries: `Q03-eligibility-counts.sql`, `Q04-goat-reviews.sql`, `Q12-longest-playtime.sql`, `Q21-goat-simulator.sql` (battery preserved alongside this finding); influence drill-down: `Q06a-influence-top.csv` (CSV only, no backing SQL preserved)
-- Reproduce via: [Labs/Lab03_duckdb_gold/](../../Labs/Lab03_duckdb_gold/) (DuckDB harness over Gold parquet exports)
+- Reproduce via: [DuckDB/](../../DuckDB/) (DuckDB harness over Gold parquet exports)
 - Methodology:
   - [scoring-model.md](../architecture/scoring-model.md) (§ *Review eligibility gates*, § *Review influence weights*)
   - [overview.md](../architecture/overview.md) (silver-to-gold CDF loader)

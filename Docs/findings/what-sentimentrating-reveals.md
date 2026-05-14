@@ -326,7 +326,7 @@ Three reads of the same metric, three matching shapes. Game grain: cozy and shor
 
 - Queries: `Q23-top-sentimentrated-games.sql`, `Q24-aggregate-sentiment-leaders.sql` (battery preserved alongside this finding); theme + genre context also in `Q07-theme-alignment.sql`, `Q15-genre-playtime.sql`, `Q16-theme-playtime.sql`
 - Drill-down queries: `Q25-game-review-drilldown.sql` (top review per top-3 game), `Q26-theme-game-drilldown.sql` (top 3 games per Business/Educational/Romance theme), `Q27-genre-game-drilldown.sql` (top 3 games per Point-and-click/Puzzle/Platform genre), `Q28-golden-zone-drilldown.sql` (golden zone combos and games)
-- Reproduce via: [Labs/Lab03_duckdb_gold/](../../Labs/Lab03_duckdb_gold/) (DuckDB harness over Gold parquet exports)
+- Reproduce via: [DuckDB/](../../DuckDB/) (DuckDB harness over Gold parquet exports)
 - Methodology: [scoring-model.md](../architecture/scoring-model.md) (§ *Bayesian shrinkage with empirically-derived priors*, § *Review influence weights*)
 - Companion findings: [sentiment-vote-alignment.md](sentiment-vote-alignment.md) (the gap between text and votes), [where-the-gap-grows.md](where-the-gap-grows.md) (how often vote tier and sentiment tier disagree, by review volume)
 - Caveats:

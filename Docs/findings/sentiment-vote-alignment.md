@@ -195,7 +195,7 @@ Outlast at -27.54 is the most-recognisable angry-text extreme. Godus at +30.36 (
 ## Sources
 
 - Queries: `Q01-alignment-negative.sql`, `Q02-alignment-positive.sql`, `Q07-theme-alignment.sql`, `Q13-popularity.sql`, `Q14-most-divisive.sql`, `Q20-refund-rates.sql`, `Q29-alignment-explainer.sql`, `Q30-alignment-drilldown.sql` (battery preserved alongside this finding)
-- Reproduce via: [Labs/Lab03_duckdb_gold/](../../Labs/Lab03_duckdb_gold/) (DuckDB harness over Gold parquet exports)
+- Reproduce via: [DuckDB/](../../DuckDB/) (DuckDB harness over Gold parquet exports)
 - Methodology: [scoring-model.md](../architecture/scoring-model.md) (§ *sentimentVoteAlignment*, § *Bayesian shrinkage with empirically-derived priors*, § *Review influence weights*)
 - Companion findings: [what-sentimentrating-reveals.md](what-sentimentrating-reveals.md) (the leaderboard view of the text rating on its own), [where-the-gap-grows.md](where-the-gap-grows.md) (volume-bucket detail and the tier-mismatch reframe behind why the gap shows up where it does)
 - Caveats:

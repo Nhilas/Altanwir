@@ -24,15 +24,15 @@ The analytics is the fun side effect. The engineering is the point.
 | `docs/architecture/scoring-model.md` | Deep-dive on the influence score and empirical Bayes priors. |
 | GitHub Issues | Active task state. Source of truth for what's done, in flight, queued. |
 | `docs/adrs/` | Architecture Decision Records. Numbered, durable, one decision per file. |
-| `docs/decisions/decisions.md` | Sanitized session takeaways. Cross-tool readable timeline of what got decided when. |
-| `docs/references/` | Implementation gotchas and quirks: `fabric_gotchas.md`, `spark-quirks.md`, `sentiment-vader-quirks.md`. |
+| `docs/decisions.md` | Sanitized session takeaways. Cross-tool readable timeline of what got decided when. |
+| `docs/quirks/` | Implementation gotchas and quirks: `fabric-quirks.md`, `spark-quirks.md`, `vader-quirks.md`. |
 | `Fabric/` | The Fabric implementation. Notebooks, pipelines, audit warehouse, lakehouse, sqlproj endpoint. |
+| `DuckDB/` | Active analytics layer over Gold parquet exports (sibling of `Fabric/`). Five files: `init.duckdb.sql` (harness), `README.md`, `agent-orientation-primer.md` (agent canon — column meanings, naming conventions, architecture orientation), `agentic-analytics.md` (methodology), `query-rules.md` (must-follow query patterns). **Agents writing queries against `gold.*` views: read `query-rules.md` first, then `agent-orientation-primer.md` for vocabulary.** |
 | `Labs/Lab02_Fabric/` | Playground and tutorial notebooks (SteamAnalytics, tutorials, PoC work). |
 | `Labs/Lab00_duckdb` & `Labs/Lab01_dbt/` | Local dbt-on-DuckDB lab. Proof-of-concept only, not part of the Fabric pipeline. |
-| `Bahir/` | Personal Foam knowledge base. Theory and tool syntax notes. |
-| `Bahir/Journal/` & `Bahir/Journal/Archive` | Hand-written notes by the author. Voice preserved, not authoritative. |
+| `Labs/README.md` | One-line pointer at `../DuckDB/` so the lab folder doesn't read as the active analytics layer. |
 
-If a fact is in conflict between files, the order of authority is: code > `overview.md` > `docs/adrs/` > `docs/decisions/` > everything else.
+If a fact is in conflict between files, the order of authority is: code > `overview.md` > `docs/adrs/` > `docs/decisions.md` > everything else.
 
 ---
 
@@ -40,9 +40,11 @@ If a fact is in conflict between files, the order of authority is: code > `overv
 
 **`G:\Work\Altanwir-scratch\`** is the canonical workspace for active planning, staging, prompt generation, and brain-pipeline parking. Always check here for in-flight context.
 
-- **Plans:** `plan-{slug}.md` files in the root. `plan-overview.md` is the master plan for the documentation/architecture work — consult when working on portfolio docs.
-- **Brain-pipeline parking lot:** `Tasks\Landing.md` (raw captures) and `Tasks\Processed.md` (organized by topic). Managed by the `/triage` skill — items are routed here automatically. Triage audit trail at `Tasks\Logs\Triage-YYYYMMDD.md`.
-- **Helper artifacts:** `Architecture/` contains intermediate documentation artifacts (`silver-merged.md`, `*-prompt.md` files).
+- **Plans & cluster folders:** `plan-{slug}.md` files at the root for single-task plans; `#<issue>-<slug>/` folders for cluster work (scope/spec/plan triad inside each).
+- **Brain-pipeline canon:** `z-Tasks\brain-pipeline.md` (Bronze → Silver → Gold cognitive tiers, duration tiers, SKIP policy) and `z-Tasks\brain-taxonomy.md` (phase canon, axes, taxonomies). Read both before any workflow that touches Landing.md, Processed.md, GitHub Issues, or sprint planning.
+- **Brain-pipeline parking lot:** `z-Tasks\Bronze\Landing.md` (raw captures) and `z-Tasks\Silver\Processed-{Domain}.md` (organized by domain). Managed by the `/triage` + `/process-landing` skills.
+- **Logs:** `z-Tasks\Logs\Planning-YYYYMMDD.md` (current sprint state) and `z-Tasks\Logs\Triage-YYYYMMDD.md` (audit trail).
+- **Helper artifacts:** root of `Altanwir-scratch\` holds random helpers, intermediate steps, raw source pastes. `Archive\` holds completed cluster folders.
 
 ---
 
@@ -244,7 +246,8 @@ If a suggestion drifts toward any of these, the right move is to flag the scope 
 1. Read this file (you're here).
 2. Read `docs/architecture/overview.md` for the *what* and *why*.
 3. Check GitHub Issues for *what's next* (source of truth for task state).
-4. Skim `docs/adrs/` if the task touches any architectural decision; `docs/decisions/decisions.md` for session takeaways.
-5. Then proceed.
+4. Skim `docs/adrs/` if the task touches any architectural decision; `docs/decisions.md` for session takeaways.
+5. If the task touches the analytics layer or queries, read `DuckDB/query-rules.md` and `DuckDB/agent-orientation-primer.md`.
+6. Then proceed.
 
 Three file reads should give any agent enough context to be useful immediately.

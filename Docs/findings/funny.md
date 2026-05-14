@@ -135,7 +135,7 @@ The Black Desert "first 42,200 hours were confusing, but these last 99 have been
 ## Sources
 
 - Queries: `Q10-funniest-reviews.sql`, `Q17b-funny-density.sql`, `Q23-disaster-snippets.sql`, `Q24-playtime-tail-extended.sql`, `Q25-funny-by-theme.sql`, `Q12-longest-playtime.sql` (battery preserved alongside this finding)
-- Reproduce via: [Labs/Lab03_duckdb_gold/](../../Labs/Lab03_duckdb_gold/) (DuckDB harness over Gold parquet exports)
+- Reproduce via: [DuckDB/](../../DuckDB/) (DuckDB harness over Gold parquet exports)
 - Methodology: [scoring-model.md](../architecture/scoring-model.md) (§ *Review influence weights*, on the community-signal sub-blend that includes funny votes)
 - Companion findings: [edge-cases.md](edge-cases.md) (the gates and the playtime tail), [sentiment-vote-alignment.md](sentiment-vote-alignment.md) (text vs vote at game grain)
 - Caveats:

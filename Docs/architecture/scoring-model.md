@@ -43,7 +43,7 @@ isVaderEligible =
 
 VADER then runs as a `pandas_udf` returning `struct{pos, compound, neu, neg}` over Arrow batches. For ineligible reviews, it returns NULL — preserved as a real distinction from a `0.0` ("neutral") score. **There is no fallback to `voteDirection`.** A NULL means VADER didn't score it; a 0.0 means VADER scored it as neutral. Conflating the two would muddle two semantically distinct signals.
 
-The full eligibility logic and the NULL-no-fallback contract for downstream aggregates live in [references/sentiment-vader-quirks.md](../references/sentiment-vader-quirks.md).
+The full eligibility logic and the NULL-no-fallback contract for downstream aggregates live in [quirks/vader-quirks.md](../quirks/vader-quirks.md).
 
 ---
 

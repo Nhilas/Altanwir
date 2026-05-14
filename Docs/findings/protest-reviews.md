@@ -106,7 +106,7 @@ On a corpus this size, one review can shift the per-game numbers it sits in.
 ## Sources
 
 - Queries: `Q05-pergame-norm.sql`, `Q11a-most-helpful-reviews.sql`, `Q11b-aggregate-upvotes.sql` (battery preserved alongside this finding)
-- Reproduce via: [Labs/Lab03_duckdb_gold/](../../Labs/Lab03_duckdb_gold/) (DuckDB harness over Gold parquet exports)
+- Reproduce via: [DuckDB/](../../DuckDB/) (DuckDB harness over Gold parquet exports)
 - Methodology:
   - [scoring-model.md](../architecture/scoring-model.md) (§ *Review influence weights*)
   - [ADR-007, per-game normalisation](../adrs/adr-007-per-game-normalisation.md) (why Q05 was written; why a single 34k-upvote review does not unilaterally dominate per-game aggregates)

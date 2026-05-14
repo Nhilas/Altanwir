@@ -9,8 +9,6 @@ This folder holds the linter configurations for this repository. Two linters are
 
 Both run automatically on push and pull request via `.github/workflows/lint.yml`.
 
-Detailed rule-by-rule references are in `Bahir/Tools/GitHub/GitHub-Actions-ruff.md` and `Bahir/Tools/GitHub/GitHub-Actions-sqlfluff.md`.
-
 ---
 
 ## What is linted

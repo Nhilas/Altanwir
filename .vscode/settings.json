@@ -1,8 +1,10 @@
 {
     "ruff.configuration": ".config/ruff.toml",
     "files.associations": {
-        "*.sql": "jinja-sql"
+        "*.sql": "jinja-sql",
+        "*.duckdb.sql": "sql"
     },
+    "mssql.intelliSense.enableIntelliSense": false,
     "chat.agentSkillsLocations": {
         ".github/skills": true,
         ".agents/skills": true,

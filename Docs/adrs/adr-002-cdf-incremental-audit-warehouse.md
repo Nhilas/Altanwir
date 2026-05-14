@@ -2,6 +2,8 @@
 
 **Date:** 2026-04-13
 
+> **Scope boundary:** this ADR covers the CDF watermark in `versionControl` only. The landing-zone + `is_loaded` audit-queue half of the same pipeline is in [ADR-009](adr-009-review-scraper-bronze-loader-decoupling.md).
+
 ## Context
 
 Silver and Gold notebooks need to know where to start reading the upstream Delta table on each incremental run. Delta Lake has no native cross-table watermark — `DESCRIBE HISTORY` exposes audit data for the table that was written, but not which version of the *source* table was last consumed. The Fabric trial cluster allows only one cluster at a time; spinning up Spark just to read a single integer watermark wastes 2–4 minutes of cluster startup.

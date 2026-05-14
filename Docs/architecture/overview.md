@@ -47,7 +47,7 @@ Source: [`diagrams/architecture.mmd`](diagrams/architecture.mmd).
 
 In narrative form, with the operational detail per pipeline:
 
-- **`pl_Steam_API`** — runs hourly. `NB_Steam_Reviews` reads the `vw_loadReviews` snapshot view (top-N games + cursor + watermark), scrapes the Steam Storefront API, writes batched JSON to OneLake (`/Files/Steam/Reviews/{run_id}/{execution_id}/`), and logs each execution into `loadControlReviews` with `is_loaded = 0`.
+- **`pl_Steam_API`** — runs hourly. `NB_Steam_Reviews` reads the `vw_loadReviews` snapshot view (top-N games + cursor + watermark), scrapes the Steam Storefront API, writes batched JSON to OneLake (`/Files/Steam/Reviews/{load_type}/{run_id}/{execution_id}/`), and logs each execution into `loadControlReviews` with `is_loaded = 0`.
 - **`pl_Steam_Reviews_Medallion_Incremental`** — runs daily. `NB_Steam_Reviews_Bronze` polls the audit warehouse for `is_loaded = 0` rows, MERGEs the corresponding JSON files into `bronze.steamReviews`, then flips the flag to `1`. Silver and Gold notebooks then run CDF-incremental, gated by the `versionControl` watermark.
 - **`pl_Steam_Reviews_Medallion`** — full-reload variant of the above; same notebook chain, different `load_type`.
 - **`pl_IGDB_Medallion`** — runs IGDB metadata reload. `NB_1_Bronze` ingests every IGDB endpoint we use (with `autoMerge` for schema evolution), then `NB_2_Silver` builds the dim + bridge tables.
@@ -214,6 +214,7 @@ Three categories live here. **ADR-linked** items have full context at the linked
 
 - **Steam API extractor on plain Jupyter, not Spark** — pure-Python API fetch doesn't justify a Spark cluster; under one-cluster-at-a-time trial capacity, every avoided spin-up matters. _([adr-002](../adrs/adr-002-cdf-incremental-audit-warehouse.md))_
 - **Audit warehouse over pyodbc with PBI bearer token** — IN-clauses chunked at ~1,000 rows to stay under SQL Server's 2,100-parameter ceiling; no Spark cluster spin-up to read or write audit. _([adr-002](../adrs/adr-002-cdf-incremental-audit-warehouse.md))_
+- **Landing-zone + audit-queue handshake for the scraper / Bronze hand-off** — the extractor writes JSON to OneLake and inserts an execution row into `loadControlReviews` with `is_loaded = 0`; the Bronze loader polls `is_loaded = 0` rows, upserts the corresponding batches into `bronze.steamReviews`, then flips the flag to `1` on success. Decouples hourly scraping from the daily Spark upsert and keeps the extractor off Spark. _([adr-009](../adrs/adr-009-review-scraper-bronze-loader-decoupling.md))_
 - **`tenacity` retry + HTTP-403 `kill_switch`** — `wait_random_exponential(multiplier=1, max=600)` up to 5 attempts on rate-limits and 5xx, but a 403 trips a `threading.Event` that aborts every worker thread. Steam treats 403 as "your IP is suspect"; aborting before more requests fire is the difference between a rate-limit cooldown and a ban.
 - **High-water-mark cursor early-exit** — Steam returns `recent`-sorted; once `reviews[0].timestamp_created <= high_water_mark`, every subsequent review in the page is older. Exit the batch loop instead of paging through known data.
 - **Pipeline `run_id` propagated end-to-end ("Option A" wiring)** — pipeline-level parameter flows into every notebook and is persisted as `inserted_run_id` / `updated_run_id` on every Gold row plus every `versionControl` audit entry. One id traces a row from Bronze ingest through Silver and Gold for any post-mortem.
@@ -221,13 +222,13 @@ Three categories live here. **ADR-linked** items have full context at the linked
 
 ### Operational gotchas
 
-Reference docs in [Docs/references/](../references/) carry the actionable detail. These pointers exist so a reader of `overview.md` knows what's there:
+Reference docs in [Docs/quirks/](../quirks/) carry the actionable detail. These pointers exist so a reader of `overview.md` knows what's there:
 
-- **`sentimentSignal` NULL-no-fallback contract** — downstream weighted aggregates need `NULLIF` guards; a fallback to `voteDirection` would muddle two semantically distinct signals. _([references/sentiment-vader-quirks.md](../references/sentiment-vader-quirks.md))_
-- **VADER eligibility logic** — Steam mislabels non-English reviews as English; the eligibility flags filter emoji-only, template-heavy, and no-space reviews before VADER runs. _([references/sentiment-vader-quirks.md](../references/sentiment-vader-quirks.md))_
-- **`table_changes()` Spark SQL parser workaround** — column refs in subqueries attach to the outer table, not `table_changes()`; aliasing doesn't help. Workaround: collect to Python, build an explicit IN-list. _([references/spark-quirks.md](../references/spark-quirks.md))_
-- **Liquid-clustering DDL ordering** — `CLUSTER BY (col)` must come before `TBLPROPERTIES` at create time; `ALTER TABLE ... CLUSTER BY` is unsupported in Fabric — clusters are immutable post-create. _([references/fabric_gotchas.md](../references/fabric_gotchas.md))_
-- **`SHOW CREATE TABLE` blocked on Delta in Fabric** — also: Spark views are invisible to the SQL endpoint (separate catalogs). Schema reproduction needs DataFrame introspection or DDL extraction. _([references/fabric_gotchas.md](../references/fabric_gotchas.md))_
+- **`sentimentSignal` NULL-no-fallback contract** — downstream weighted aggregates need `NULLIF` guards; a fallback to `voteDirection` would muddle two semantically distinct signals. _([quirks/vader-quirks.md](../quirks/vader-quirks.md))_
+- **VADER eligibility logic** — Steam mislabels non-English reviews as English; the eligibility flags filter emoji-only, template-heavy, and no-space reviews before VADER runs. _([quirks/vader-quirks.md](../quirks/vader-quirks.md))_
+- **`table_changes()` Spark SQL parser workaround** — column refs in subqueries attach to the outer table, not `table_changes()`; aliasing doesn't help. Workaround: collect to Python, build an explicit IN-list. _([quirks/spark-quirks.md](../quirks/spark-quirks.md))_
+- **Liquid-clustering DDL ordering** — `CLUSTER BY (col)` must come before `TBLPROPERTIES` at create time; `ALTER TABLE ... CLUSTER BY` is unsupported in Fabric — clusters are immutable post-create. _([quirks/fabric-quirks.md](../quirks/fabric-quirks.md))_
+- **`SHOW CREATE TABLE` blocked on Delta in Fabric** — also: Spark views are invisible to the SQL endpoint (separate catalogs). Schema reproduction needs DataFrame introspection or DDL extraction. _([quirks/fabric-quirks.md](../quirks/fabric-quirks.md))_
 
 ## What's not in the repo
 

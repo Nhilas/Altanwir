@@ -19,13 +19,10 @@
 --      etc.)
 --   3. .read's each Fabric view file in dependency order
 --
--- CONFIG ----------------------------------------------------------------------
--- The parquet exports live outside the repo. If your local path differs from
--- the default, find-and-replace `G:/Work/IGDB-Blitz/IGDB-exports/` below
--- before running. Use forward slashes on Windows.
---
+-- PARQUET ROOT ---------------------------------------------------------------
 -- Default parquet root: G:/Work/IGDB-Blitz/IGDB-exports/
 -- Layout: <root>/<schema>/<table>/part-*.snappy.parquet
+-- Exports live outside the repo (gitignored).
 -- -----------------------------------------------------------------------------
 
 
@@ -41,6 +38,7 @@ CREATE OR REPLACE SCHEMA gold;
 -- Step 2 — Silver base-table views (over parquet)
 -- =============================================================================
 
+-- Dimension sources
 CREATE OR REPLACE VIEW silver.games AS
 SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/games/*.parquet');
 
@@ -53,6 +51,7 @@ SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/platforms/*.p
 CREATE OR REPLACE VIEW silver.themes AS
 SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/themes/*.parquet');
 
+-- Bridge tables (game ↔ genre/platform/theme)
 CREATE OR REPLACE VIEW silver.bridgegamegenres AS
 SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/bridgegamegenres/*.parquet');
 
@@ -62,9 +61,11 @@ SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/bridgegamepla
 CREATE OR REPLACE VIEW silver.bridgegamethemes AS
 SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/bridgegamethemes/*.parquet');
 
+-- External-id mapping (IGDB ↔ Steam)
 CREATE OR REPLACE VIEW silver.externalgames AS
 SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/externalgames/*.parquet');
 
+-- Review fact source
 CREATE OR REPLACE VIEW silver.steamreviews AS
 SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/steamreviews/*.parquet');
 
@@ -73,9 +74,11 @@ SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/steamreviews/
 -- Step 3 — Gold base-table views (over parquet)
 -- =============================================================================
 
+-- Review-grain fact (~71M rows)
 CREATE OR REPLACE VIEW gold.factreviews AS
 SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/gold/factreviews/*.parquet');
 
+-- Game-grain aggregated fact
 CREATE OR REPLACE VIEW gold.factgamescores AS
 SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/gold/factGameScores/*.parquet');
 

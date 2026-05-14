@@ -14,7 +14,7 @@
 
 ## The how + key decisions
 
-A Bronze→Silver→Gold medallion: schema-resilient JSON ingest, then an 8-step text-cleaning chain feeding VADER through engineered data-quality gates (`isVaderEligible`, `hasCredibleText`), then per-review signals and game-grain aggregation with performance tuning at 71M-review scale. CDF incremental from Silver onward, gated by watermarks held in a separate Fabric SQL Warehouse that handles audit and observability off the Spark plane. Four decisions carry the engineering identity; the silver VADER + cleaning work is logged as **D-11** in [`decisions.md`](Docs/decisions/decisions.md).
+A Bronze→Silver→Gold medallion: schema-resilient JSON ingest, then an 8-step text-cleaning chain feeding VADER through engineered data-quality gates (`isVaderEligible`, `hasCredibleText`), then per-review signals and game-grain aggregation with performance tuning at 71M-review scale. CDF incremental from Silver onward, gated by watermarks held in a separate Fabric SQL Warehouse that handles audit and observability off the Spark plane. Four decisions carry the engineering identity; the silver VADER + cleaning work is logged as **D-11** in [`decisions.md`](Docs/decisions.md).
 
 | ADR | One-line gist |
 |---|---|
@@ -43,8 +43,8 @@ Three more in [`Docs/findings/`](Docs/findings/) (protest-reviews, edge-cases, f
 - [`Docs/architecture/scoring-model.md`](Docs/architecture/scoring-model.md): VADER eligibility, `reviewInfluenceScore` formula, the shrinkage step, tier calibration.
 - [`Docs/findings/`](Docs/findings/): six analytical writeups (sentiment-vote-alignment, what-sentimentrating-reveals, where-the-gap-grows, protest-reviews, edge-cases, funny).
 - [`Docs/adrs/`](Docs/adrs/): eight ADRs in Context / Decision / Rationale / Trade-offs / Reversibility shape.
-- [`Docs/decisions/decisions.md`](Docs/decisions/decisions.md): lightweight architectural calls that didn't warrant a full ADR (11 rows including D-11 for the VADER scorer choice).
-- [`Labs/Lab03_duckdb_gold/`](Labs/Lab03_duckdb_gold/): DuckDB query layer over the Gold parquet exports. Holds the 13 SQL-endpoint views, ported off Fabric.
+- [`Docs/decisions.md`](Docs/decisions.md): lightweight architectural calls that didn't warrant a full ADR (11 rows including D-11 for the VADER scorer choice).
+- [`DuckDB/`](DuckDB/): active analytics layer over Gold parquet exports. Contains the harness, the agent orientation primer that scaffolded the analytics loop, and the agentic-analytics methodology doc.
 
 ## Tech stack
 

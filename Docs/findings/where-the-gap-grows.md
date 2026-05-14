@@ -114,7 +114,7 @@ Three of the seven 100k+ games where sentiment ran above vote, all live-service 
 
 - Queries: `Q08-volume-buckets.sql` (volume-bucket means and stddevs), `Q31-tier-mismatch-by-volume.sql` (tier-agreement rates by bucket), `Q32-tier-mismatch-drilldown.sql` (per-pattern game drill-down), `Q33-tier-mismatch-explainer.sql` (one game per pattern)
 - Charts: `A08_volume_vs_quality.png` (in [Docs/exports/02_Analytics/](../exports/02_Analytics/))
-- Reproduce via: [Labs/Lab03_duckdb_gold/](../../Labs/Lab03_duckdb_gold/) (DuckDB harness over Gold parquet exports)
+- Reproduce via: [DuckDB/](../../DuckDB/) (DuckDB harness over Gold parquet exports)
 - Methodology: [scoring-model.md](../architecture/scoring-model.md) (§ *sentimentVoteAlignment*, § *Tier calibration*, § *Bayesian shrinkage with empirically-derived priors*)
 - Companion finding: [sentiment-vote-alignment.md](sentiment-vote-alignment.md) (the per-game gap as its own metric, with negative-tail and positive-tail leaderboards plus reviewer-text drill-downs)
 - Caveats:

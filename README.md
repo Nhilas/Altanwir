@@ -1,50 +1,95 @@
 # Altanwir
 
-*Steam reviews carry two signals at once: the recommend-vote thumb, and the words. A medallion lakehouse over 71M reviews × IGDB scores both. The text-sentiment leaderboard reads cozy and short-narrative; the recommend-vote leaderboard reads AAA.*
+*Using Microsoft Fabric, i ingested 71M Steam reviews × IGDB game metadata into a Medallion lakehouse (three layers: raw, cleaned, analytics). The full ingestion took 2h28m on an 8-core trial cluster. The text in those 71M reviews disagrees with the thumbs (positive or negative review), and the disagreement has a shape.*
 
-## Architecture
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![Apache Spark](https://img.shields.io/badge/Apache_Spark-PySpark-E25A1C?logo=apachespark&logoColor=white)
+![Delta Lake](https://img.shields.io/badge/Delta_Lake-003366?logo=delta&logoColor=white)
+![Microsoft Fabric](https://img.shields.io/badge/Microsoft_Fabric-0078D4?logo=microsoft&logoColor=white)
+![DuckDB](https://img.shields.io/badge/DuckDB-FFF000?logo=duckdb&logoColor=black)
 
-<a href="Docs/architecture/diagrams/architecture.png"><img src="Docs/architecture/diagrams/architecture-summary.png" alt="Medallion pipeline summary: sources to serving views"></a>
+> [!NOTE]
+> This is a learning project. The architecture choices reflect a re-entry exercise into modern data engineering after previous experience with on-prem BI.
+
+## Contents
+
+- [Overview](#overview)
+- [Findings](#findings)
+- [Repository layout](#repository-layout)
+- [Tech stack](#tech-stack)
+- [Limitations](#limitations)
+
+---
+
+## Overview
+
+<a href="Docs/architecture/diagrams/architecture-summary.png"><img src="Docs/architecture/diagrams/architecture-summary.png" alt="Medallion pipeline summary: sources to serving views"></a>
 
 *Full pipeline + legend: [`overview.md#diagram`](Docs/architecture/overview.md#diagram).*
 
-## The why
+Three layers: Bronze (raw), Silver (cleaned), Gold (analytics).
 
-71M Steam reviews × IGDB, processed end-to-end in 2h 28m on a single 8-core Fabric trial cluster. The pipeline scores each review on two axes (recommend-vote and VADER text-sentiment), influence-weights them at review grain, and applies shrinkage so a 5-review indie does not outrank a 50,000-review behemoth (formulas in [`scoring-model.md`](Docs/architecture/scoring-model.md)).
+- Bronze ingests Steam JSON and IGDB metadata, both schema-resilient. Steam's schema drifts every few months; the loader doesn't care.
+- Silver does the heavy work: an 8-step text-cleaning chain, then VADER (rule-based lexicon that extracts sentiment polarity) over the cleaned body, gated on `isVaderEligible` and `hasCredibleText` so the scorer never sees obvious junk reviews. Bridge tables in Silver handle the many-to-many relationships between games and igdb metadata.
+- Gold rolls up to game grain with influence-weighting and shrinkage, so a 5-review indie does not outrank a 50,000-review behemoth. IGDB aggregated ratings get the same treatment (formulas in [`scoring-model.md`](Docs/architecture/scoring-model.md)).
 
-## The how + key decisions
+After the first full load, the reviews pipeline is incremental. Change Data Feed (CDF) ships changes from Silver onward, and watermarks live in a separate Fabric SQL Warehouse. The audit plane runs off-Spark, so observability and audit reads do not spin up a cluster.
 
-A Bronze→Silver→Gold medallion: schema-resilient JSON ingest, then an 8-step text-cleaning chain feeding VADER through engineered data-quality gates (`isVaderEligible`, `hasCredibleText`), then per-review signals and game-grain aggregation with performance tuning at 71M-review scale. CDF incremental from Silver onward, gated by watermarks held in a separate Fabric SQL Warehouse that handles audit and observability off the Spark plane. Four decisions carry the engineering identity; the silver VADER + cleaning work is logged as **D-11** in [`decisions.md`](Docs/decisions.md).
+Three ADRs cover the key decisions that shaped the pipeline:
 
 | ADR | One-line gist |
 |---|---|
 | [adr-001](Docs/adrs/adr-001-dimensional-gold-over-array-obt.md) | Dimensional Gold over array-OBT. Fabric's SQL endpoint cannot surface complex types, so the model goes Kimball-aligned star schema all the way down. |
-| [adr-002](Docs/adrs/adr-002-cdf-incremental-audit-warehouse.md) | CDF incremental with a separate audit warehouse. Watermark reads do not spin up a Spark cluster, and the audit plane carries the observability story. |
-| [adr-003](Docs/adrs/adr-003-empirical-bayes-priors.md) | Data-derived priors for the shrinkage step. A flat 0.5 prior flatlined `smoothedIGDBRating` at 57-62 across genres; the actual population mean is ~0.67. |
-| [adr-005](Docs/adrs/adr-005-adaptive-salting.md) | Adaptive salting on hot keys. Spark performance tuning on Counter-Strike's 2.5M-review skew; uniform salting wastes shuffle on cold keys. |
+| [adr-002](Docs/adrs/adr-002-cdf-incremental-audit-warehouse.md) | CDF incremental with a separate audit warehouse. Watermark reads do not spin up a Spark cluster, and the audit plane runs observability off-Spark. |
+| [adr-009](Docs/adrs/adr-009-review-scraper-bronze-loader-decoupling.md) | Steam reviews are scraped and stored in OneLake as audited batches. A decoupled pipeline processes new additions at regular intervals. |
 
-Full set in [`Docs/adrs/`](Docs/adrs/) (8 ADRs).
+*9 ADRs total in [`Docs/adrs/`](Docs/adrs/), with 11 minor calls in [`decisions.md`](Docs/decisions.md).*
 
-## What surfaced
+## Findings
 
-The pipeline's two-axis design produces a per-game text-sentiment score alongside the recommend-vote score. Both are smoothed toward the dataset average; both land on a 0-100 scale in `vw_factGameScores` as `weightedSentimentRating` and `weightedVoteRating` (formulas in [`scoring-model.md`](Docs/architecture/scoring-model.md)). The two often disagree, and the disagreement is structured.
+Steam ranks games by thumb-up percentage. The text doesn't get counted. At 71M reviews, that's a lot of unread evidence, and the gap between what the thumb says and what the text says has a shape worth measuring.
 
-Three finding docs walk what surfaces:
+> [!IMPORTANT]
+> The pipeline exists to answer a question: do the words in Steam reviews agree with the thumbs? The architecture is the method. The findings below are the answer.
+
+Thumbs and text often disagree, and the disagreement is structured. The text reads angrier on punishing-difficulty games and milder on disappointing AAA launches (big-studio releases). Doom sits 21 points below its thumb; Starfield sits 17 above it. The shape repeats at genre and theme grain. Both scores land on a 0-100 scale in `vw_factGameScores` (`weightedSentimentRating` and `weightedVoteRating`; formulas in [`scoring-model.md`](Docs/architecture/scoring-model.md)).
+
+Three finding docs walk through what surfaced:
 
 - [`sentiment-vote-alignment.md`](Docs/findings/sentiment-vote-alignment.md): the per-game gap between the two axes, with recognizable extremes (Doom −21.16 on the angry-text side, Starfield +16.64 on the mild-text side) and the theme-grain pattern behind them.
 - [`where-the-gap-grows.md`](Docs/findings/where-the-gap-grows.md): the gap grows monotonically with audience size. In games with 100k+ reviews, the two letter grades disagree on 71% of titles.
 - [`what-sentimentrating-reveals.md`](Docs/findings/what-sentimentrating-reveals.md): the smoothed text-sentiment leaderboard reads cozy and short-narrative (A Short Hike 96.75, Tiny Glade 96.21), with the same shape at theme and genre grain.
 
-Three more in [`Docs/findings/`](Docs/findings/) (protest-reviews, edge-cases, funny).
+*6 findings total, in [`Docs/findings/`](Docs/findings/).*
 
-## How to navigate
+## Repository layout
 
-- [`Docs/architecture/overview.md`](Docs/architecture/overview.md): full architectural writeup. Diagram + legend, field-lineage table (Bronze → Gold), engineering-pattern catalogue all live here.
-- [`Docs/architecture/scoring-model.md`](Docs/architecture/scoring-model.md): VADER eligibility, `reviewInfluenceScore` formula, the shrinkage step, tier calibration.
-- [`Docs/findings/`](Docs/findings/): six analytical writeups (sentiment-vote-alignment, what-sentimentrating-reveals, where-the-gap-grows, protest-reviews, edge-cases, funny).
-- [`Docs/adrs/`](Docs/adrs/): eight ADRs in Context / Decision / Rationale / Trade-offs / Reversibility shape.
-- [`Docs/decisions.md`](Docs/decisions.md): lightweight architectural calls that didn't warrant a full ADR (11 rows including D-11 for the VADER scorer choice).
-- [`DuckDB/`](DuckDB/): active analytics layer over Gold parquet exports. Contains the harness, the agent orientation primer that scaffolded the analytics loop, and the agentic-analytics methodology doc.
+```
+Altanwir/
+├── README.md
+├── Docs/
+│   ├── architecture/
+│   │   ├── overview.md              # full writeup + diagram + field-lineage table
+│   │   └── scoring-model.md         # VADER eligibility, influence score, shrinkage
+│   ├── adrs/                        # 9 ADRs (Context / Decision / Rationale / Trade-offs)
+│   ├── decisions.md                 # 11 lightweight calls that didn't need a full ADR
+│   ├── findings/                    # 6 analytical writeups
+│   └── quirks/                      # implementation quirks and workarounds (Fabric, Spark, VADER)
+├── DuckDB/
+│   ├── README.md
+│   ├── agentic-analytics.md         # the agent-loop methodology
+│   └── init.duckdb.sql              # harness over Gold parquet exports
+├── Fabric/                          # Spark notebooks + Data Factory pipelines
+│   ├── NB_Steam_Reviews.Notebook/   # API extractor (plain Jupyter, not Spark)
+│   ├── NB_Steam_Reviews_Bronze.Notebook/
+│   ├── NB_Steam_Reviews_Silver.Notebook/
+│   ├── NB_Steam_Reviews_Gold.Notebook/
+│   ├── NB_Game_Scores_Gold.Notebook/
+│   ├── NB_1_Bronze.Notebook/        # IGDB loader
+│   ├── NB_2_Silver.Notebook/        # IGDB dim + bridge build
+│   └── pl_*.DataPipeline/           # 4 orchestration pipelines
+└── Labs/                            # local prototyping (DuckDB, dbt, Fabric PoCs)
+```
 
 ## Tech stack
 
@@ -58,3 +103,10 @@ Lakehouse on Azure (Microsoft Fabric). The Spark + Delta + Parquet patterns are 
 - **Query layer**: DuckDB (post-Fabric portability)
 - **Orchestration**: Microsoft Fabric Data Factory
 - **Audit plane**: Fabric SQL Warehouse (off-Spark)
+
+## Limitations
+
+- **No semantic layer.** Presentation logic (tier labels, scaled ratings) lives in Gold serving views, not in a Power BI semantic model with DAX measures. The trade-off was scope: the project was scoped to PySpark/Fabric end-to-end.
+- **No time-series, no DLC grouping, no patch/version segmentation.** The grain stays one row per game, static. Adding any of these would require IGDB fields not currently fetched and a non-trivial schema change.
+- **No cross-platform IGDB↔Steam analysis.** No canonical mapping between IGDB platform ids and Steam app ids exists. `vw_aggPlatforms` is IGDB-only as a result.
+- **IGDB Bronze and Silver notebooks are the first Python written on this project.** They predate the patterns the Steam notebooks use: no `environment` parameter, no PARAMETERS-cell runtime overrides, ad-hoc credential handling. They work and shipped to prod; the Steam chain is the cleaner reference.

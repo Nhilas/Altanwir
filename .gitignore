@@ -1,5 +1,8 @@
 # Ignore folders
 
+## Scratch junction (points at Altanwir-scratch; @-picker workaround)
+scratch/
+
 ## DuckDB
 Labs/Lab00_duckdb/data/
 

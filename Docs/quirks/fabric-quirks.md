@@ -1,4 +1,4 @@
-# Fabric - references
+# Fabric references
 
 _Last updated: 2026-05-04_
 
@@ -6,8 +6,8 @@ _Last updated: 2026-05-04_
 
 Fabric Lakehouse has two catalogs that share _tables_ but not _views_:
 
-- **Spark catalog** — where `spark.sql("CREATE VIEW ...")` registers views. Visible to Spark notebooks only.
-- **SQL analytics endpoint** — auto-exposes Delta tables from the Lakehouse. Does NOT see Spark views.
+- **Spark catalog.** Where `spark.sql("CREATE VIEW ...")` registers views. Visible to Spark notebooks only.
+- **SQL analytics endpoint.** Auto-exposes Delta tables from the Lakehouse. Does NOT see Spark views.
 
 **Implication:** A view created via Spark SQL in a notebook is invisible to the SQL analytics endpoint. "Invalid object name" error when querying.
 
@@ -55,23 +55,19 @@ Returns namespace (GUID-based), viewName, isTemporary.
 
 **What:** When creating a liquid-clustered Delta table, the `CLUSTER BY (col)` clause must appear before `TBLPROPERTIES` in the DDL statement. Reversing the order causes a Spark SQL parse error.
 
-**Why it bites:** Most Delta Lake examples put `TBLPROPERTIES` first (for `delta.enableChangeDataFeed`, `delta.autoOptimize`, etc.). Adding `CLUSTER BY` after `TBLPROPERTIES` fails silently in some editors and loudly in others — the error message does not mention ordering.
+**Why it bites:** Most Delta Lake examples put `TBLPROPERTIES` first (for `delta.enableChangeDataFeed`, `delta.autoOptimize`, etc.). Adding `CLUSTER BY` after `TBLPROPERTIES` fails silently in some editors and loudly in others. The error message does not mention ordering.
 
 **What to do:** Structure DDL as `CREATE TABLE ... CLUSTER BY (col) TBLPROPERTIES (...)`. Not `CREATE TABLE ... TBLPROPERTIES (...) CLUSTER BY (col)`.
-
-**Source:** silver-merged.md §Engineering patterns → Liquid clustering, line 164. [ADR-006](../adrs/adr-006-liquid-clustering.md).
 
 ---
 
 ## `ALTER TABLE ... CLUSTER BY` is unsupported in Fabric
 
-**What:** Liquid cluster keys cannot be changed after table creation in Microsoft Fabric. `ALTER TABLE ... CLUSTER BY (newCol)` is not supported — only `CREATE TABLE ... CLUSTER BY` works at DDL time.
+**What:** Liquid cluster keys cannot be changed after table creation in Microsoft Fabric. `ALTER TABLE ... CLUSTER BY (newCol)` is not supported. Only `CREATE TABLE ... CLUSTER BY` works at DDL time.
 
 **Why it bites:** If the cluster key choice turns out to be wrong (e.g., Bronze was initially clustered on `app_id` for an ingest that merges on `recommendationid`), the only fix is to drop and recreate the table. This was discovered during the Apr 23 production deploy when Bronze and Silver cluster keys needed correction.
 
 **What to do:** Treat cluster-key choice as a commitment at create time. If a key change is needed, plan a full table drop + recreate + reload cycle. Document the chosen cluster key and its rationale (which predicate it serves) so future maintainers understand why it was chosen.
-
-**Source:** silver-merged.md §Engineering patterns → Liquid clustering, line 172. [ADR-006](../adrs/adr-006-liquid-clustering.md).
 
 ---
 
@@ -80,10 +76,10 @@ Returns namespace (GUID-based), viewName, isTemporary.
 - **Spark views ≠ SQL endpoint views.** Separate catalogs. Views created via `spark.sql()`
   are invisible to the SQL analytics endpoint. Need to define T-SQL view in the endpoint
   directly for demo queries.
-- **`SHOW CREATE TABLE` blocked on Delta** — use `DESCRIBE TABLE` or DataFrame schema
+- **`SHOW CREATE TABLE` blocked on Delta.** Use `DESCRIBE TABLE` or DataFrame schema
   introspection instead.
-- **Spark views don't show in Lakehouse UI** — use `SHOW VIEWS IN <schema>` to find them.
-- **Complex types blocked in Delta via SQL endpoint** — no arrays, structs, maps. This is
+- **Spark views don't show in Lakehouse UI.** Use `SHOW VIEWS IN <schema>` to find them.
+- **Complex types blocked in Delta via SQL endpoint.** No arrays, structs, maps. This is
   why Gold uses flat strings and bridge tables instead of `collect_list`. See [ADR-001](../adrs/adr-001-dimensional-gold-over-array-obt.md).
-- **`targeted` load type has a data trap** — percentile windows run over filtered subset,
+- **`targeted` load type has a data trap.** Percentile windows run over filtered subset,
   not full population. Safe for testing merge mechanics only; not production data. See [ADR-004](../adrs/adr-004-percentiles-in-views.md).

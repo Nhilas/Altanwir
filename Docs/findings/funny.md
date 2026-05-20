@@ -59,7 +59,7 @@ The same button, divided by review count, surfaces a different population. Filte
 | The Forgotten Ones | 7.89 | 7,765 | 984 | 41.97 | Mixed |
 | Call of Duty: Black Ops 7 | 9.55 | 20,982 | 2,197 | 38.37 | Mostly Negative |
 
-Read the **funny per review** column. Fast & Furious: Crossroads sits at 66.34 funny votes per review, against a Q10 baseline where the average review carries fewer than one funny vote. Every game in the table holds a Mixed or Mostly Negative Steam label, and the % negative-text column ranges 31-49%. The shape reads as **gaming-disaster** (an informal cluster, not a measured column). Funny-per-review ratios run 10x to 66x above the Q10 baseline.
+Fast & Furious: Crossroads sits at 66.34 funny votes per review, against a Q10 baseline where the average review carries fewer than one funny vote. Every game in the table holds a Mixed or Mostly Negative Steam label, and the % negative-text column ranges 31-49%. **Gaming-disasters** (games reviewed negatively) owns the table. Funny-per-review ratios run 10x to 66x above the Q10 baseline.
 
 ## Snippets from the disaster
 
@@ -84,9 +84,12 @@ Selected from the top three rows by funny-vote count for each game, one to two p
 | The Forgotten Ones | 1,110 | NO | "If this game was a potato, it would be a bad potato." |
 | The Forgotten Ones | 672 | NO | "Uninstall Simulator 2014" |
 
-Several recurring shapes show up. *Uninstall-as-feature* (BrickForce, Gasp, Forgotten Ones). *Reverse-thumbs* writers using a YES rating to land a sharper punchline (Day One's "show the developers what a thumbs up looks like", Fast & Furious's "you don't do that to family"). *External comparison* ("Driving in Fortnite is more entertaining"). *Speedrun and category-name humor* (The Culling II's "Dead game any%"). The Day One: Garry's Incident "we are no longer friends" line accounts for about 13% of that game's entire funny-vote total by itself.
+Several recurring shapes show up:
 
-LOTR: Gollum's top entry is the one to read twice. The reviewer is in character as Gollum until the third sentence, then drops back to first-person to update their feelings about their mother.
+- *Uninstall-as-feature* (BrickForce, Gasp, Forgotten Ones).
+- *Reverse-thumbs* writers using a YES rating to land a sharper punchline (Day One's "show the developers what a thumbs up looks like", Fast & Furious's "you don't do that to family").
+- *External comparison* ("Driving in Fortnite is more entertaining").
+- *Speedrun and category-name humor* (The Culling II's "Dead game any%"). The Day One: Garry's Incident "we are no longer friends" line accounts for about 13% of that game's entire funny-vote total by itself.
 
 ## By theme: where the culture lives
 

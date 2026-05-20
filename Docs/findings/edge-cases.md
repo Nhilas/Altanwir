@@ -19,6 +19,7 @@ The single sentence the doc makes: the pipeline knows what kind of input it's lo
 | **influence score** (`reviewInfluenceScore`) | a 0-1 weight per review used when rolling up game-level scores. Blends community signals (helpful / funny / comment / reaction votes), playtime, length, emotional intensity, and sentiment intensity |
 | **weighted sentiment rating** (`weightedSentimentRating`) | per-game 0-100 score. Influence-weighted average of per-review sentiment directions (positive or negative, derived from each review's VADER compound score) across VADER-eligible reviews |
 | **weighted vote rating** (`weightedVoteRating`) | per-game 0-100 score. Influence-weighted average of every thumb (yes / no), regardless of text quality |
+| **Bronze / Silver / Gold layers** | medallion architecture stages: raw ingest (Bronze), cleaned and quality-gated (Silver, e.g. `silver.steamreviews`), analytics-ready (Gold, e.g. `gold.factreviews`) |
 | **CDF** (Change Data Feed) | the silver-to-gold incremental loader. Picks up changes from silver on a schedule. A row that just changed in silver may not have arrived in gold yet |
 
 ## The credible-text gate catches jokes
@@ -36,7 +37,7 @@ The single sentence the doc makes: the pipeline knows what kind of input it's lo
 | Battlefield 2042 | 8,000 | 1 | 8,000.0 | `tankstankstankstanks...` |
 | Fallout: New Vegas - Dead Money | 8,000 | 1 | 8,000.0 | `NightmareNightmareNightmare...` |
 
-Read the **wordLengthRatio** column. Each of these reviews is one "word" between 7,774 and 8,000 characters long. The credible-text gate trips on that shape and flips `isVaderEligible` to false, so VADER never tries to score `BAHHHHHHHHHHHH` as positive or negative.
+As **wordLengthRatio** shows, each of these reviews is one "word" between 7,774 and 8,000 characters long. The credible-text gate trips on that shape and flips `isVaderEligible` to false, so VADER never tries to score `BAHHHHHHHHHHHH` as positive or negative (as injust as it is towards any legitimate goats that played Goat Simulator).
 
 The snippets read as jokes about each game. SuperHot's catchphrase is the review. Bloons is a network-rage protest. Goat Simulator returns the noise the player makes in-game.
 
@@ -62,7 +63,7 @@ These reviews are not deleted. They survive into `gold.factreviews` with `isVade
 
 ## Influence and sentiment are different gates
 
-`reviewInfluenceScore` is a per-review 0-1 weight. The top 5 reviews by influence:
+Influence and sentiment eligibility are two different filters that run independently. `reviewInfluenceScore` answers how much a review's vote should count for the game total; `isVaderEligible` answers whether the text deserves to be scored at all. The top 5 reviews by influence:
 
 *Source: `Q06-influence-score.sql` (Q06a CSV).*
 
@@ -106,9 +107,9 @@ The Peppa Pig snippet in full:
 ⣿⡿⠋⠁⠀⠀⢀⣀⣠⡴⣸⣿⣇⡄⠀⠀⠀⠀⢀⡿⠄⠙⠛⠀⣀⣠⣤⣤⠄
 ```
 
-*I am just as confused.*
+*I am just as confused, but the community has spoken: peppa is gigachad.*
 
-Influence answers "how much should this review's vote count for the game total." Sentiment eligibility answers "does the text deserve to be scored at all." The two gates run independently.
+The two gates run independently.
 
 ## The playtime tail
 

@@ -2,7 +2,7 @@
 
 ## What this doc covers
 
-Steam reviews carry two signals at once: the recommend / not-recommend thumb (the **vote**), and the words the player wrote. The pipeline scores each review's words with VADER (a sentiment scorer that returns a number from -1 for very negative to +1 for very positive), aggregates per-review scores up to the game level, rescales to a 0-100 range, and applies a smoothing step called *shrinkage* that pulls low-volume games toward the dataset average so a 5-review indie does not outrank a 50,000-review behemoth. The vote signal is processed the same way. The **alignment** metric is the difference between the two on the 0-100 scale: positive means the words are milder than the votes, negative means the words are angrier than the votes.
+Steam reviews come with a thumb and a paragraph, and those two often disagree. The pipeline scores each review's words with VADER (a sentiment scorer that returns a number from -1 for very negative to +1 for very positive), aggregates per-review scores up to the game level, rescales to a 0-100 range, and applies a smoothing step called *shrinkage* that pulls low-volume games toward the dataset average so a 5-review indie does not outrank a 50,000-review behemoth. The vote signal is processed the same way. The **alignment** metric is the difference between the two on the 0-100 scale: positive means the words are milder than the votes, negative means the words are angrier than the votes.
 
 This doc walks the negative tail of alignment at game grain (where players write angrier text than they vote), then the positive tail (where players write milder text than they vote), then asks whether the same shape shows up at theme and popularity grain. It does not restate the smoothing formulas or priors (those live in [scoring-model.md](../architecture/scoring-model.md)).
 
@@ -75,7 +75,7 @@ Recognisable IPs with at least 50,000 reviews, ordered by alignment ascending.
 | Cuphead | -13.39 | 70,104 | Very Positive | 28.7 | 15.99 | 0% | 2.20 | 0.42 | Adventure, Arcade, Indie, Platform, Shooter / Action, Comedy, Fantasy |
 | Dead Cells | -13.37 | 50,002 | Very Positive | 44.2 | 15.75 | 12.5% | 2.04 | 0.23 | Adventure, Indie, Platform / Action, Fantasy |
 
-Two informal clusters jump out (a read of the games, not separate measured columns). The first reads as **punishing-difficulty**: Doom, Doom Eternal, Sekiro, Cuphead, Dead Cells, Dark Souls III. Players write angry-sounding reviews about dying repeatedly, then click recommend. The second reads as **survival-horror sandbox**: Phasmophobia, Lethal Company, Project Zomboid, RimWorld. Three of the four are 100% early access. RimWorld at 410 hours of average playtime sits at the deep-investment end of the table; these are veterans, not drive-by gripers.
+Two clusters here, both informal. **Punishing-difficulty** owns six rows: Doom, Doom Eternal, Sekiro, Cuphead, Dead Cells, Dark Souls III. Players type angry sentences about dying twenty times to the same boss, then click recommend. **Survival-horror sandbox** owns the other four, and three of those ran 100% early access. RimWorld at 410 hours of average playtime closes the row; these are veterans typing through gritted teeth, not drive-by gripers.
 
 ### The reviews behind the angry-text picks
 
@@ -119,7 +119,7 @@ Recognisable IPs with at least 50,000 reviews, ordered by alignment descending.
 | Monster Hunter Wilds | +8.86 | 115,183 | Mixed | 70.5 | 21.39 | 14.56 | 0% | Adventure, Hack and slash, RPG / Action, Fantasy, Open world |
 | Apex Legends | +7.07 | 60,607 | Mixed | 446.0 | 34.38 | 3.90 | 0% | Shooter, Tactical / Action, Sci-fi |
 
-Reads as **disappointment-AAA**. Shared traits across the rows above: high-volume launches, "Mixed" Steam labels in every row, bug-mention rates between 14% and 26% on six of seven games. Apex Legends sits at 446 hours of average playtime. The reviewers in this cluster have hundreds of hours in and a red thumb on the page; VADER scores their text positive.
+**Disappointment-AAA** owns the table. Shared traits across the rows: high-volume launches, "Mixed" Steam labels in every row, bug-mention rates between 14% and 26% on six of seven games. Apex Legends sits at 446 hours of average playtime. The reviewers in this cluster have hundreds of hours in and a red thumb on the page; VADER scores their text positive.
 
 ### The reviews behind the mild-text picks
 
@@ -166,7 +166,7 @@ Highest refund-rate games among titles with at least 10,000 reviews.
 | Just Survive | 2.58 | 37,607 | Mixed | 62.97 | 59.17 | +3.79 | 94.04% | 16.98 |
 | Hatred | 2.58 | 11,204 | Mostly Positive | 62.20 | 82.87 | -20.67 | 0% | 4.86 |
 
-Read the **% refunds** column against **% early-access reviews**. Seven of the ten rows carry an early-access share above 35% (Bodycam, Atlas, Gray Zone Warfare, Battalion Legacy, Inzoi, Miscreated, Just Survive), and all seven carry an alignment above zero (text milder than vote). The alignment values stay modest (most under +12) because the underlying ratings live in the 60-80 band rather than at the ceiling. The direction (mild text, harsher vote) is the same direction the disappointment-AAA cluster runs in. Hatred is the standalone counter-example in this table: 0% early access, alignment -20.67, sitting alongside the angry-text cluster's direction.
+**% refunds** and **% early-access reviews** speak volumes. Seven of the ten rows carry an early-access share above 35% (Bodycam, Atlas, Gray Zone Warfare, Battalion Legacy, Inzoi, Miscreated, Just Survive), and all seven carry an alignment above zero (text milder than vote). The alignment values stay modest (most under +12) because the underlying ratings live in the 60-80 band rather than at the ceiling. The direction (mild text, harsher vote) is the same direction the disappointment-AAA cluster runs in. Hatred is the standalone counter-example in this table: 0% early access, alignment -20.67, sitting alongside the angry-text cluster's direction.
 
 ## The pattern is structural
 

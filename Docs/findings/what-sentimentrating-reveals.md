@@ -62,7 +62,7 @@ Top 15 games by text sentiment rating, scoped to titles with at least 10,000 rev
 
 The first column to read is **text sentiment**: every row sits between 94.59 and 96.75. The vote rating column tracks within a few points of the text rating across the table; sentiment-vote alignment stays small here (the inverse picture from the negative tail in the alignment doc).
 
-Two informal clusters jump out (a read of the games, not separate measured columns). The first reads as **cozy / sandbox**: Tiny Glade, Townscaper, Dorfromantik, Islanders, Fields of Mistria, Unpacking. Open-ended building or arrangement, no fail state. Avg playtime sits between 8h and 38h. The second reads as **short narrative-puzzle**: A Short Hike, Chants of Sennaar, Sheepy, The Room, The Room Two, Abzu, Strange Horticulture, Tactical Breach Wizards. Tight runtimes (2-17h on average), story or puzzle as the load-bearing draw.
+Two clusters here, both informal. **Cozy / sandbox** owns six rows: Tiny Glade, Townscaper, Dorfromantik, Islanders, Fields of Mistria, Unpacking. Open-ended building or arrangement, no fail state. Avg playtime sits between 8h and 38h. **Short narrative-puzzle** owns the other eight: A Short Hike, Chants of Sennaar, Sheepy, The Room, The Room Two, Abzu, Strange Horticulture, Tactical Breach Wizards. Tight runtimes (2-17h on average), story or puzzle as the load-bearing draw.
 
 The behavior columns line up. **% refunds** sits at 0.76 or below across all 15 rows; **% bug mentions** sits at 7.05 or below (and at 3.49 or below for 11 of 15). **% negative-text reviews** ranges from 2.62 to 5.19, well below the dataset's average pctNegativeSentiment band (the same column hits 16-25 across the alignment doc's tail).
 
@@ -111,7 +111,7 @@ Top 10 themes by text sentiment rating, scoped to themes covering at least 100 r
 | Party | 910 | 1,515,974 | 84.12 | 88.93 | 13.00 | 15.6 | 0.41 | 3.39 |
 | Erotic | 278 | 216,046 | 83.86 | 88.63 | 14.89 | 19.1 | 0.54 | 2.71 |
 
-Read the **theme** column. Business / Educational / Romance / Kids / Mystery / Drama / Comedy land seven of the top ten. Themes like Horror, Thriller, and Survival do not appear in this top ten. Their text sentiment ratings sit a few points below the lowest row above; the alignment doc covers how their text and vote ratings diverge. **% negative-text reviews** at theme grain stays under 15 in every row above; **% bug mentions** stays under 8.
+Business / Educational / Romance / Kids / Mystery / Drama / Comedy land seven of the top ten. Themes like Horror, Thriller, and Survival do not appear in this top ten. Their text sentiment ratings sit a few points below the lowest row above; the alignment doc covers how their text and vote ratings diverge. **% negative-text reviews** at theme grain stays under 15 in every row above; **% bug mentions** stays under 8.
 
 ## Business, Educational, Romance: theme drill-down
 

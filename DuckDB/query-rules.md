@@ -1,6 +1,6 @@
 # Query rules — Altanwir Gold (DuckDB)
 
-**Agent: read this file before composing queries against `gold.*` views. The patterns below are not suggestions; ignoring them produces wrong results or 30-50 hour query times.**
+**Agent: read this file before composing queries against `gold.*` views. The patterns below are not suggestions; ignoring them produces wrong results or 10-15 minute query times.**
 
 This file presumes the domain vocabulary in [`agent-orientation-primer.md`](agent-orientation-primer.md). If a term in a rule below is unfamiliar (`gameKey`, `factreviews`, `vw_gameCatalogue`, etc.), read the primer's §2 Glossary first.
 
@@ -23,7 +23,7 @@ Resolve to a small `gameKey` set first via the cheap dimension views (`vw_dimGam
 ### Example
 
 ```sql
--- BAD — scans the full view chain. 30-50 hours.
+-- BAD — scans the full view chain. 10-15 mins.
 SELECT gameName, COUNT(*) AS reviews
 FROM gold.vw_factReviews
 WHERE gameName IN ('DOOM', 'Starfield', 'Disco Elysium')

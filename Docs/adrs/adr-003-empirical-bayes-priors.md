@@ -8,7 +8,7 @@ Game-grain rating columns (`smoothedIGDBRating`, `weightedSentimentRating`, `wei
 
 ## Decision
 
-Derive priors from the observed population means of the dataset, not from a textbook default. `smoothedIGDBRating` uses `prior ≈ 0.67` (mean `aggregatedRating / 100` across IGDB-rated games); `weightedSentimentRating` uses `prior ≈ 0.84` (influence-weighted mean `(weightedSentiment + 1) / 2`); `weightedVoteRating` uses `prior ≈ 0.89` (influence-weighted mean `(weightedVote + 1) / 2`). `steamVoteRating` keeps `prior = 0.5`. It scores `pctVotedUp`, a binary signal where 0.5 is a genuine indifference point (equal up- and down-votes), not the population mean.
+Derive priors from the observed population means of the dataset, not from a textbook default. `smoothedIGDBRating` uses `prior ≈ 0.67` ( [`igdb_rating_prior`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py#L250) is computed at runtime from `silver.games`, not hard-coded ) `weightedSentimentRating` uses `prior ≈ 0.84` (influence-weighted mean `(weightedSentiment + 1) / 2`); `weightedVoteRating` uses `prior ≈ 0.89` (influence-weighted mean `(weightedVote + 1) / 2`). `voteRating` keeps `prior = 0.5`. It scores `pctVotedUp`, a binary signal where 0.5 is a genuine indifference point (equal up- and down-votes), not the population mean.
 
 The smoothing formula `observed - (observed - prior) × pow(2, -log10(N + 1))` and tier calibration are documented in [scoring-model.md](../architecture/scoring-model.md).
 
@@ -18,10 +18,10 @@ The flat 57–62 distribution was the prior doing exactly what it was told, not 
 
 ## Trade-offs
 
-**Gained.** Tier distribution spreads across the observed range. S-tier at `totalReviews ≥ 1,000` surfaces small curated games (A Short Hike, Tiny Glade, Fields of Mistria); Portal, Stardew Valley, and Hades land in A-tier (regression to mean with volume, not miscalibration). The 0.5 exception on binary vote preserves statistical honesty.
+**Gained.** Tier distribution spreads across the observed range. S-tier at `totalReviews ≥ 1,000` surfaces small curated games (A Short Hike, Tiny Glade, Fields of Mistria); Portal, Stardew Valley, and Hades land in A-tier (regression to mean with volume, not miscalibration). The 0.5 exception on `voteRating` preserves statistical honesty.
 
 **Lost.** Priors are dataset-dependent. A substantially different corpus (e.g., filtered to a single genre) would need re-derivation. Per-genre priors are deferred to silver_v2.
 
 ## Reversibility
 
-High. Priors are computed at runtime from `gold.factReviews` aggregates, not hard-coded. Switching back to 0.5 or adopting per-genre priors needs changing the prior-computation CTE in `NB_Game_Scores_Gold` and re-running the ~30k-row `factGameScores` MERGE. A sub-minute operation.
+High. Priors are computed at runtime (`igdb_rating_prior` from `silver.games`; `weighted_sentiment_prior` and `weighted_vote_prior` from `gold.factReviews`), not hard-coded. Switching back to 0.5 or adopting per-genre priors needs changing the prior-computation CTE in `NB_Game_Scores_Gold` and re-running the ~30k-row `gold.factGameScores` MERGE. A sub-minute operation.

@@ -8,7 +8,7 @@ During development, the full set of analytical questions the model would need to
 
 ## Decision
 
-`gold.factGameScores` stores all raw and intermediate values at full precision. No rounding, no scaling, no labels, no tier assignments. Presentation logic lives only in `gold.vw_factGameScores`: `× 100` scaling for percentages, `ROUND()` for display, `CASE WHEN` for S/A/B/C/D/F tier bands, `steamRatingLabel` for Steam-style volume-bucketed labels, and Capital Case formatting for `sentimentLabel`. Labelling and presentation-logic decisions (#21 in triage) follow directly from this pattern: `sentimentLabel` in the fact is NULL-aware and direction-only; the human-readable tiers and Steam labels exist only in views.
+`gold.factGameScores` stores all raw and intermediate values at full precision. No rounding, no scaling, no labels, no tier assignments. Presentation logic lives only in `gold.vw_factGameScores`: `× 100` scaling for percentages, `ROUND()` for display, `CASE WHEN` for S/A/B/C/D/F tier bands, (for example [`steamRatingLabel`](../../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql#L75) ), and Capital Case formatting for `sentimentLabel`. Labelling and presentation-logic decisions (#21 in triage) follow directly from this pattern: `sentimentDirection` in the fact is NULL-aware and direction-only; the human-readable tiers and Steam labels exist only in views.
 
 ## Rationale
 
@@ -18,7 +18,7 @@ Schema changes on Delta tables are expensive. Column additions widen every Parqu
 
 **Gained.** The fact table is a complete analytical record. Any future question can be answered from the raw values without ETL changes. Presentation changes (label wording, tier boundaries, scaling, column selection) are view-only, zero-downtime, zero-cost. Twelve columns were dropped from the OBT design during the Apr 14–16 pivot (see [overview.md §Data model](../architecture/overview.md#data-model)). None of those would have been needed if the fact had been wide from the start.
 
-**Lost.** A consumer must use the view (or replicate its logic) to get human-readable output. The fact table's raw values are not directly presentable. The wide table includes intermediate values (e.g., `sentiment_prior`, `vote_prior`) that are useful for auditing the formula but irrelevant to most consumers.
+**Lost.** A consumer must use the view (or replicate its logic) to get human-readable output. The fact table's raw values are not directly presentable. The wide table includes intermediate values (e.g., `weightedSentiment`, `weightedVote`, `pctWeightedSentiment`, `pctWeightedVote`) that are useful for auditing the formula but irrelevant to most consumers.
 
 ## Reversibility
 

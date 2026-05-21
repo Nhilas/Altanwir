@@ -16,7 +16,7 @@ Replace the array-shaped OBT with a dimensional model in Gold:
 - `gold.factReviews` (review grain): unchanged
 - `gold.vw_agg*`: view marts for single-dim queries
 - `gold.vw_dim*` and `gold.vw_game*`: pass-through views over Silver dims and bridges, mapping games to dimensions
-- `gold.vw_gameCatalog`: exploded game × dim catalog for filter-then-aggregate workflows
+- `gold.vw_gameCatalogue`: exploded game × dim catalog for filter-then-aggregate workflows
 
 ## Rationale
 
@@ -26,7 +26,7 @@ Three workarounds didn't survive review. A materialized Cartesian product inflat
 
 **Gained.** Pure T-SQL surface. Power BI Direct Lake compatible. Fact / dim / bridge stay separated. Bridges stay in Silver as single source of truth.
 
-**Lost.** More physical Gold objects (2 tables + 13 views vs. 1 OBT). Cross-dim queries need the explicit CTE pattern via `vw_gameCatalog` joining to `factGames`.
+**Lost.** More physical Gold objects (2 tables + 13 views vs. 1 OBT). Cross-dim queries need the explicit CTE pattern via `vw_gameCatalogue` joining to `gold.factGameScores`.
 
 ## Reversibility
 

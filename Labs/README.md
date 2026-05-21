@@ -8,7 +8,7 @@ The folder numbers mark the order the folders were created, not the order things
 
 The first sandbox: the DuckDB CLI pointed straight at files, no server.
 
-- Landed the full **Kaggle Steam datasets** as raw CSVs: ~6.4M reviews ([`andrewmvd/steam-reviews`](https://www.kaggle.com/datasets/andrewmvd/steam-reviews), `reviews.csv`, ~2 GB) and ~123k games ([`fronkongames/steam-games-dataset`](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset), `games.csv`, ~390 MB), plus smaller hand-cut samples (`sampleReviews.csv` at ~100k rows, `sGames.csv` at 100) for fast iteration.
+- Downloaded the **Kaggle Steam datasets** as raw CSVs: ~6.4M reviews ([`andrewmvd/steam-reviews`](https://www.kaggle.com/datasets/andrewmvd/steam-reviews), `reviews.csv`, ~2 GB) and ~123k games ([`fronkongames/steam-games-dataset`](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset), `games.csv`, ~390 MB), plus smaller hand-cut samples (`sampleReviews.csv` at ~100k rows, `sGames.csv` at 100) for fast iteration.
 - `SELECT` directly over CSV and Parquet with no load step, including wildcard reads across many files at once.
 - Federated querying against the cloud lakehouse: `delta_scan` reading remote Delta tables over an `az login` credential chain, with no connection strings or passwords.
 - The "yoink": `COPY` a slice of a cloud table down to a local file to keep working offline at zero cloud cost (`query.sql` is the leftover `azReviews` probe).

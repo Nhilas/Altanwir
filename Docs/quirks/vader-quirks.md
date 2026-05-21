@@ -18,7 +18,7 @@ _Last updated: 2026-05-04_
 
 **Why it bites:** Steam mislabels some non-English reviews as English. Many reviews are emoji-only, template-heavy (BBCode blocks), or 8000-character `GoatGoat...` strings with no spaces. A naive `language == 'english'` filter passes all of these. Without the eligibility gates, VADER scores noise; the compound scores look plausible but represent gibberish.
 
-**What to do:** Always check `isVaderEligible` before consuming VADER output. The `hasCredibleText` sub-flag catches the "Goat review" pattern: `wordLengthRatio` outside 2–15 indicates a single token or no tokens (typical English ranges 4–12). The eligibility flags are computed in Silver and persist to Gold `factReviews` for the `reviewInfluenceScore` dual-branch formula.
+**What to do:** Always check `isVaderEligible` before consuming VADER output. The `hasCredibleText` sub-flag catches the "Goat review" pattern: `wordLengthRatio` outside 2–15 indicates a single token or no tokens (typical English ranges 4–12). The eligibility flags are computed in Silver and persist to Gold `gold.factReviews` for the `reviewInfluenceScore` dual-branch formula.
 
 ---
 
@@ -26,6 +26,6 @@ _Last updated: 2026-05-04_
 
 **What:** Steam occasionally sends `4294967295` (UINT32_MAX, `0xFFFFFFFF`) for `votesFunny` and `votesUp` counts: an invalid sentinel value, not a real count.
 
-**Why it bites:** Without a guard, a single review with 4.3 billion funny votes dominates every normalisation and aggregation that touches the column. `max_votesUp` in the per-game `game_stats` CTE would be pinned to UINT32_MAX, making every other review's `communitySignal` normalise to ≈ 0.
+**Why it bites:** Without a guard, a single review with 4.3 billion funny votes dominates every normalisation and aggregation that touches the column. `max_votesUp` in the per-game `aux_silver` CTE would be pinned to UINT32_MAX, making every other review's `communitySignal` normalise to ≈ 0.
 
 **What to do:** Silver applies `when(col > 2147483647, 0).otherwise(col.cast(IntegerType()))` before any downstream computation. The threshold is INT32_MAX (`2^31 - 1`); any value above it is treated as an invalid sentinel and zeroed.

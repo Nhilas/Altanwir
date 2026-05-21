@@ -20,19 +20,19 @@ The analytics is the fun side effect. The engineering is the point.
 
 | File | Purpose |
 |---|---|
-| `docs/architecture/overview.md` | What's being built and why. Intent, scoring model context, not progress. |
-| `docs/architecture/scoring-model.md` | Deep-dive on the influence score and empirical Bayes priors. |
+| `Docs/architecture/overview.md` | What's being built and why. Intent, scoring model context, not progress. |
+| `Docs/architecture/scoring-model.md` | Deep-dive on the influence score and empirical Bayes priors. |
 | GitHub Issues | Active task state. Source of truth for what's done, in flight, queued. |
-| `docs/adrs/` | Architecture Decision Records. Numbered, durable, one decision per file. |
-| `docs/decisions.md` | Sanitized session takeaways. Cross-tool readable timeline of what got decided when. |
-| `docs/quirks/` | Implementation gotchas and quirks: `fabric-quirks.md`, `spark-quirks.md`, `vader-quirks.md`. |
+| `Docs/adrs/` | Architecture Decision Records. Numbered, durable, one decision per file. |
+| `Docs/decisions.md` | Sanitized session takeaways. Cross-tool readable timeline of what got decided when. |
+| `Docs/quirks/` | Implementation gotchas and quirks: `fabric-quirks.md`, `spark-quirks.md`, `vader-quirks.md`. |
 | `Fabric/` | The Fabric implementation. Notebooks, pipelines, audit warehouse, lakehouse, sqlproj endpoint. |
 | `DuckDB/` | Active analytics layer over Gold parquet exports (sibling of `Fabric/`). Five files: `init.duckdb.sql` (harness), `README.md`, `agent-orientation-primer.md` (agent canon — column meanings, naming conventions, architecture orientation), `agentic-analytics.md` (methodology), `query-rules.md` (must-follow query patterns). **Agents writing queries against `gold.*` views: read `query-rules.md` first, then `agent-orientation-primer.md` for vocabulary.** |
 | `Labs/Lab02_Fabric/` | Playground and tutorial notebooks (SteamAnalytics, tutorials, PoC work). |
 | `Labs/Lab00_duckdb` & `Labs/Lab01_dbt/` | Local dbt-on-DuckDB lab. Proof-of-concept only, not part of the Fabric pipeline. |
 | `Labs/README.md` | One-line pointer at `../DuckDB/` so the lab folder doesn't read as the active analytics layer. |
 
-If a fact is in conflict between files, the order of authority is: code > `overview.md` > `docs/adrs/` > `docs/decisions.md` > everything else.
+If a fact is in conflict between files, the order of authority is: code > `overview.md` > `Docs/adrs/` > `Docs/decisions.md` > everything else.
 
 ---
 
@@ -82,7 +82,7 @@ If a fact is in conflict between files, the order of authority is: code > `overv
 
 Two source pipelines (Steam reviews via custom multi-threaded scraper, IGDB via API) land raw JSON in Bronze, get cleaned and enriched in Silver (text quality gates, VADER sentiment, hash-based change detection, liquid clustering), and synthesize in Gold into a star schema (`factReviews` at review grain, `factGameScores` at game grain, plus aggregate views by genre / platform / theme). Empirical Bayes priors on confidence-adjusted ratings handle the small-sample-size problem. Audit and version control live in a separate Fabric Warehouse, accessed via pyodbc rather than Spark. The full pipeline ran on 77 million reviews in 2h 33m on trial capacity. Adaptive salting on hot keys (e.g. Counter-Strike at 2.5M reviews) applied at gold level, in the transition from review to game grain.
 
-Detailed architecture: `docs/architecture/overview.md`. Scoring model detail: `docs/architecture/scoring-model.md`.
+Detailed architecture: `Docs/architecture/overview.md`. Scoring model detail: `Docs/architecture/scoring-model.md`.
 
 ---
 
@@ -213,7 +213,7 @@ dbt docs generate && dbt docs serve
 
 ### Fabric notebooks
 
-- Notebooks run inside the Fabric UI or via `pl_Steam_Reviews_Medallion` / `pl_IGDB_Medallion` pipelines. Parameter semantics and notebook contracts live in `docs/architecture/overview.md`.
+- Notebooks run inside the Fabric UI or via `pl_Steam_Reviews_Medallion` / `pl_IGDB_Medallion` pipelines. Parameter semantics and notebook contracts live in `Docs/architecture/overview.md`.
 
 ### DuckDB (local)
 
@@ -244,9 +244,9 @@ If a suggestion drifts toward any of these, the right move is to flag the scope 
 ## Quick start for an agent landing here
 
 1. Read this file (you're here).
-2. Read `docs/architecture/overview.md` for the *what* and *why*.
+2. Read `Docs/architecture/overview.md` for the *what* and *why*.
 3. Check GitHub Issues for *what's next* (source of truth for task state).
-4. Skim `docs/adrs/` if the task touches any architectural decision; `docs/decisions.md` for session takeaways.
+4. Skim `Docs/adrs/` if the task touches any architectural decision; `Docs/decisions.md` for session takeaways.
 5. If the task touches the analytics layer or queries, read `DuckDB/query-rules.md` and `DuckDB/agent-orientation-primer.md`.
 6. Then proceed.
 

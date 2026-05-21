@@ -4,11 +4,11 @@
 
 ## Context
 
-Gold game-grain analytics expose tier bands (S/A/B/C/D/F) and rating labels over the smoothed scores in `gold.factgamescores`. These bands can be materialised as columns in the fact or computed at read time in the serving view. The choice decides whether a threshold change forces an ETL re-MERGE, and whether the band stays correct when a consumer filters the population.
+Gold game-grain analytics expose tier bands (S/A/B/C/D/F) and rating labels over the smoothed scores in `gold.factGameScores`. These bands can be materialised as columns in the fact or computed at read time in the serving view. The choice decides whether a threshold change forces an ETL re-MERGE, and whether the band stays correct when a consumer filters the population.
 
 ## Decision
 
-Tier and label columns live exclusively in `gold.vw_factGameScores` (and analogous serving views), not in the `factGameScores` Delta table. The fact stores raw smoothed scores at 0-1 precision; the view scales them to 0-100 and derives `IGDBRatingTier`, `weightedSentimentTier`, `weightedVoteTier`, and `steamRatingLabel` with `CASE` thresholds at read time.
+Tier and label columns live exclusively in `gold.vw_factGameScores` (and analogous serving views), not in the `gold.factGameScores` Delta table. The fact stores raw smoothed scores at 0-1 precision; the view scales them to 0-100 and derives `weightedSentimentTier`, `weightedVoteTier`, and `steamRatingLabel` at read time. (for example: [`IGDBRatingTier`](../../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql#L36) )
 
 ## Rationale
 
@@ -24,4 +24,4 @@ The bands use absolute thresholds on the smoothed rating rather than percentile 
 
 ## Reversibility
 
-High. Materialising bands back into the fact means adding the columns to `gold.factgamescores`, computing the `CASE` logic in the Gold MERGE, and re-running it on every threshold change. The view logic already exists and would move into the MERGE.
+High. Materialising bands back into the fact means adding the columns to `gold.factGameScores`, computing the `CASE` logic in the Gold MERGE, and re-running it on every threshold change. The view logic already exists and would move into the MERGE.

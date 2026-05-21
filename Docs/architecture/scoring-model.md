@@ -23,7 +23,7 @@ Every formula here exists in code under `Fabric/`. This doc explains *why*: the 
 ## VADER and eligibility
 
 > [!IMPORTANT]
-> **Code:** `Fabric/NB_Steam_Reviews_Silver.Notebook`. Text cleaning, engineered quality columns (`isVaderEligible`, `hasCredibleText`, `wordLengthRatio`, `asciiRatio`, `uniqueWordRatio`), VADER `pandas_udf` invocation.
+> **Code:** [`Fabric/NB_Steam_Reviews_Silver.Notebook`](../../Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py). Text cleaning, engineered quality columns (`isVaderEligible`, `hasCredibleText`, `wordLengthRatio`, `asciiRatio`, `uniqueWordRatio`), VADER `pandas_udf` invocation.
 
 Sentiment columns are produced with [VADER](https://github.com/cjhutto/vaderSentiment), a lexicon-based scorer for short, social-media-style English. Two design choices wrap it: a multi-stage text-cleaning chain in Silver, and a hard eligibility gate that drops noisy reviews before scoring.
 
@@ -56,16 +56,16 @@ isVaderEligible =
 
 `hasCredibleText` is an additional check: `reviewLength > 0` AND `wordLengthRatio = reviewLength / wordCount` between 2 and 15 (typical English ranges 4–12). It catches the "Goat reviews": long single-token strings (`reviewLength` in the thousands, `wordCount = 1`, ratio in the thousands) that pass simpler ASCII or length filters.
 
-VADER then runs as a `pandas_udf` returning `struct{pos, compound, neu, neg}` over Arrow batches. For ineligible reviews, it returns NULL. That NULL is preserved as a real distinction from a `0.0` ("neutral") score. **There is no fallback to `voteDirection`.** A NULL means VADER didn't score it; a 0.0 means VADER scored it as neutral. Conflating the two would muddle two semantically distinct signals.
+VADER then runs as a [`pandas_udf`](../../Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py#L203) returning `struct{pos, compound, neu, neg}` ( the `sentiment_compound` UDF ) over Arrow batches. For ineligible reviews, it returns NULL. That NULL is preserved as a real distinction from a `0.0` ("neutral") score. **There is no fallback to `voteDirection`.** A NULL means VADER didn't score it; a 0.0 means VADER scored it as neutral. Conflating the two would muddle two semantically distinct signals.
 
 The full eligibility logic and the NULL-no-fallback contract for downstream aggregates live in [quirks/vader-quirks.md](../quirks/vader-quirks.md).
 
 ## reviewInfluenceScore: per-review weighted blend
 
 > [!IMPORTANT]
-> **Code:** `Fabric/NB_Steam_Reviews_Gold.Notebook`. Derives `communitySignal`, `lengthSignal`, `emotionalSignal`, `playtimeSignal`, `sentimentSignal`, and assembles `reviewInfluenceScore`. Per-game `max_*` aggregations live in the `game_stats` CTE.
+> **Code:** [`Fabric/NB_Steam_Reviews_Gold.Notebook`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py). Derives `communitySignal`, `lengthSignal`, `emotionalSignal`, `playtimeSignal`, `sentimentSignal`, and assembles `reviewInfluenceScore`. Per-game `max_*` aggregations are computed in the `df_silver_game_stats` DataFrame (surfaced as the `silver_reviews_with_game_stats` temp view); the `aux_silver` SQL CTE reads from that temp view to compute per-review ratios and direction columns.
 
-Every review in `gold.factReviews` has a single `reviewInfluenceScore` that weights its contribution to all downstream game-grain aggregates. Five signals feed it, each gated by a quality flag:
+Every review in `gold.factReviews` has a single `reviewInfluenceScore`, which is assembled in the [`influence_formula`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py#L474) CTE: It collapses the five weighted signals into the final score and weights its contribution to all downstream game-grain aggregates. Five signals feed it, each gated by a quality flag:
 
 | Signal | Weight | Gate | Logic |
 |---|---|---|---|
@@ -77,22 +77,22 @@ Every review in `gold.factReviews` has a single `reviewInfluenceScore` that weig
 
 > [!NOTE]
 > all `_Ratio` columns are normalised at the game level
-> `helpfulnessRatio` = how many users voted the review as helpful; `funninessRatio` = how many users voted the reviews as "is funny"; `commentsRatio` = how many comments the review got; `reactionRatio` = how many reactions (formerly community awards) the review got
+> `helpfulnessRatio` = how many users voted the review as helpful; `funninessRatio` = how many users voted the reviews as "is funny"; `commentRatio` = how many comments the review got; `reactionRatio` = how many reactions (formerly community awards) the review got
 
 `reviewInfluenceScore = sum(active weighted signals) / sum(active weights)`. Each of the five weights resolves to its full value when its gate passes, 0 when it fails. The five gates are independent. The numerator and denominator both adapt; the score ceilings at 1.0. Maximum denominator (all gates pass): `1.5 + 1.0 + 0.5 + 0.3 + 1.0 = 4.3`. Practical floor for a normal game (no `hasCredibleText`, not VADER-eligible, but the game has playtime): `1.5 + 1.0 = 2.5`. Absolute floor for DLC, where Steam does not capture playtime at the DLC level so the playtime gate fails for every review: `1.5`.
 
 ### Direction is not in the score
 
-`reviewInfluenceScore` is magnitude only. Direction lives in two separate columns:
+`reviewInfluenceScore` is magnitude only. Direction lives in two separate columns, both computed in the `aux_silver` CTE:
 
-- `voteDirection` is `votedUp ? 1 : -1`, never NULL. 
-- `sentimentDirection` is `sign(sentimentCompound)` when VADER-eligible AND compound ≠ 0; falls back to `voteDirection` **only** when eligible AND compound is exactly 0 (a rare but real case where VADER ran and returned exactly neutral); NULL when not eligible. 
+- [`voteDirection`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py#L446) is `votedUp ? 1 : -1`, never NULL.
+- `sentimentDirection` is `sign(sentimentCompound)` when VADER-eligible AND compound ≠ 0; falls back to `voteDirection` **only** when eligible AND compound is exactly 0 (a rare but real case where VADER ran and returned exactly neutral); NULL when not eligible.
 
 The outer CASE has no ELSE branch, so the "VADER did not run" distinction is preserved. Mixing direction into the influence score would conflate "how much should this review count" with "what is it saying": two different downstream questions.
 
 ### Per-game normalisation
 
-Three of the five signals are per-game-scoped, not global. `communitySignal` uses per-game maxima (`max_votesUp`, `max_votesFunny`, `max_commentCount`, `max_reactionCount`); `lengthSignal` uses per-game `max_reviewLength`; `playtimeSignal` uses per-game `percent_rank()`. Counter-Strike has 2.5M reviews; an indie has 12. A global `max_votesUp` would dwarf the indie's most helpful review into nothing. Per-game scoping keeps small-audience reviews comparable within their own context, even if it means the score isn't directly comparable across games of wildly different scales ([adr-007](../adrs/adr-007-per-game-normalisation.md)).
+Three of the five signals are per-game-scoped, not global. `communitySignal` uses per-game maxima (`max_votesUp`, `max_votesFunny`, `max_commentCount`, `max_reactionCount`); `lengthSignal` uses per-game `max_reviewLength`; `playtimeSignal` uses per-game `percent_rank()` ( all computed in the [`aux_silver`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py#L437) ). Counter-Strike has 2.5M reviews; an indie has 12. A global `max_votesUp` would dwarf the indie's most helpful review into nothing. Per-game scoping keeps small-audience reviews comparable within their own context, even if it means the score isn't directly comparable across games of wildly different scales ([adr-007](../adrs/adr-007-per-game-normalisation.md)).
 
 ### Write-amplification cost
 
@@ -101,9 +101,9 @@ Per-game normalisation has a real CDF cost. When 15,505 new reviews land for an 
 ## Game-grain aggregation: influence-weighted
 
 > [!IMPORTANT]
-> **Code:** `Fabric/NB_Game_Scores_Gold.Notebook`. Game-grain aggregation, prior derivation, MERGE into `gold.factGameScores`.
+> **Code:** [`Fabric/NB_Game_Scores_Gold.Notebook`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py). Game-grain aggregation, prior derivation, MERGE into `gold.factGameScores`.
 
-Game-grain aggregates in `gold.factGameScores` are influence-weighted means. Each review contributes proportionally to its `reviewInfluenceScore`:
+Game-grain aggregates in `gold.factGameScores` are influence-weighted means ( [`weightedSentimentRating`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py#L340) is the EB-shrunken version of `pctWeightedSentiment` produced in `NB_Game_Scores_Gold` ). Each review contributes proportionally to its `reviewInfluenceScore`:
 
 ```
 weightedSentiment =
@@ -117,7 +117,7 @@ The numerator is over VADER-eligible reviews only (ineligible rows have `sentime
 
 ## Bayesian shrinkage with empirically-derived priors
 
-Game-grain rating columns are smoothed with a SteamDB-style shrinkage formula:
+Game-grain rating columns are smoothed with a SteamDB-style shrinkage formula; [`smoothedIGDBRating`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py#L286) is the canonical implementation:
 
 ```
 smoothed = observed - (observed - prior) * pow(2, -log10(N + 1))
@@ -140,9 +140,9 @@ An early build of `smoothedIGDBRating` used `prior = 0.5` (the textbook "no info
 
 ## Tier calibration (S–F)
 
-> **Code:** `Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql` (T-SQL view in the Fabric SQL Endpoint, mirrored into DuckDB via `init.duckdb.sql`). Tier banding is presentation-layer logic. See [adr-004](../adrs/adr-004-percentiles-in-views.md), [adr-008](../adrs/adr-008-store-wide-expose-narrow.md).
+> **Code:** [`Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql`](../../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql) (T-SQL view in the Fabric SQL Endpoint, mirrored into DuckDB via [`init.duckdb.sql`](../../DuckDB/init.duckdb.sql)). Tier banding is presentation-layer logic. See [adr-004](../adrs/adr-004-percentiles-in-views.md), [adr-008](../adrs/adr-008-store-wide-expose-narrow.md).
 
-`vw_factGameScores` exposes three independent tier columns (`IGDBRatingTier`, `weightedSentimentTier`, `weightedVoteTier`), all on the same scale:
+`vw_factGameScores` exposes three independent tier columns. [`IGDBRatingTier`](../../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql#L36) (and its siblings `weightedSentimentTier`, `weightedVoteTier`) are `CASE` expressions keyed to the absolute thresholds below:
 
 | Tier | Threshold |
 |---|---|

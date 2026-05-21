@@ -244,7 +244,7 @@ Every term that appears anywhere in `Docs/architecture/`, `Docs/findings/`, or t
 | run id | `insert_run_id`, `update_run_id` | silver, gold | pipeline run id propagated end-to-end; lineage column on every row; insert side carries `insert_run_id`, updates carry `update_run_id` |
 | MERGE | n/a (operation) | silver, gold | Delta upsert; SCD Type 1; `whenMatchedUpdate(t.hash != s.hash)` so unchanged rows are no-ops |
 | CDF | n/a (mechanism) | silver→gold | Delta Change Data Feed; reads only `_change_type IN ('insert', 'update_postimage')` rows since the watermark stored in the audit warehouse |
-| broadcast join | n/a (technique) | silver | Spark hint forcing the small side of an N-vs-71M join to be replicated rather than shuffled; used for `silver.externalGames` and audit-execution lookups |
+| broadcast join | n/a (technique) | silver | Spark hint forcing the small side of an N-vs-71M join to be replicated rather than shuffled; used for `silver.externalgames` and audit-execution lookups |
 | `Unknown` | sentinel value | views (game-bridge views) | placeholder produced by `LEFT JOIN + COALESCE(..., 'Unknown')` so every game appears in every bridge view, even those with no IGDB metadata |
 
 ### 2c. Drift discipline

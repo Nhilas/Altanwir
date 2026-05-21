@@ -8,7 +8,7 @@
 
 ## Decision
 
-All normalisation in the `reviewInfluenceScore` formula is scoped per `gameKey`. `max_votesUp` and `max_reviewLength` are computed from a per-game `game_stats` CTE; `playtimeSignal = percent_rank() OVER (PARTITION BY gameKey ORDER BY playtimeAtReview)`. The normalisation ceiling for each signal is the maximum within the game's own review population, not the global corpus.
+All normalisation in the `reviewInfluenceScore` formula is scoped per `gameKey`. `max_votesUp` and `max_reviewLength` are computed in the [`aux_silver`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py#L437) CTE; `playtimeSignal = percent_rank() OVER (PARTITION BY gameKey ORDER BY playtimeAtReview)`. The normalisation ceiling for each signal is the maximum within the game's own review population, not the global corpus.
 
 The full formula shape lives in [scoring-model.md](../architecture/scoring-model.md).
 
@@ -24,4 +24,4 @@ Counter-Strike has 2.5 million reviews; a niche indie has 12. A global `max_vote
 
 ## Reversibility
 
-Moderate. Switching to global normalisation needs the `game_stats` CTE changed to compute across the full `factReviews` table, and the `PARTITION BY gameKey` removed from the percentile window. The write-amplification cost disappears (global max changes rarely), but the distortion for small games returns. Re-running the full Gold MERGE (~71M rows, ~12 minutes) applies the change.
+Moderate. Switching to global normalisation needs the `aux_silver` CTE changed to compute across the full `gold.factReviews` table, and the `PARTITION BY gameKey` removed from the percentile window. The write-amplification cost disappears (global max changes rarely), but the distortion for small games returns. Re-running the full Gold MERGE (~71M rows, ~12 minutes) applies the change.

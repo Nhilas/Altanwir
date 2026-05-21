@@ -21,7 +21,7 @@ Altanwir is a Medallion lakehouse (Bronze → Silver → Gold) on Microsoft Fabr
   - [Modelling discipline](#modelling-discipline)
   - [Schema resilience](#schema-resilience)
   - [Extraction and control plane](#extraction-and-control-plane)
-  - [Operational gotchas](#operational-gotchas)
+  - [Operational quirks](#operational-quirks)
 - [What's not in the repo](#whats-not-in-the-repo)
   - [Out of scope by design](#out-of-scope-by-design)
   - [First-iteration code](#first-iteration-code)
@@ -86,9 +86,9 @@ In narrative form, with the operational detail per pipeline:
   - Cadence decoupled: scraper runs hourly (under Steam's rate limits); Bronze fires once daily and picks up whatever accumulated.
 
 - **Silver.** Clean, enrich, score.
-  - Reviews: parse JSON → English-only → dedup `(app_id, recommendationid)` → 8-step text-cleaning chain for VADER readiness → engineered quality columns (`isVaderEligible`, `hasCredibleText`, etc.) → VADER as `pandas_udf`.
+  - Reviews: parse JSON → English-only → dedup `(app_id, steamid)` → 8-step text-cleaning chain for VADER readiness → engineered quality columns (`isVaderEligible`, `hasCredibleText`, etc.) → VADER as `pandas_udf`.
   - IGDB: dim and bridge build; broadcast-join `externalGames` to resolve `gameKey` into Steam Reviews.
-  - Surrogate keys are created for every entitiy using SHA-256
+  - Surrogate keys are created for every entity using SHA-256
 
 - **Gold.** Derive, aggregate, serve.
   - Review-grain signal columns + per-game-normalised `reviewInfluenceScore`.
@@ -130,24 +130,24 @@ The audit warehouse (`IGDBAudit`, separate Fabric SQL Warehouse, accessed via py
 
 - **[`NB_Steam_Reviews_Bronze`](../../Fabric/NB_Steam_Reviews_Bronze.Notebook/notebook-content.py).** Raw-JSON ingest.
   - Schema-samples on the richest landing folder before MERGE.
-  - Dedup `(app_id, steamid)` keeping the most recent by `timestamp_updated`.
+  - Dedup `(app_id, steamid)` keeping the most recent by `timestamp_updated` ( see `deduplicateBy` Window spec in [`NB_Steam_Reviews_Bronze`](../../Fabric/NB_Steam_Reviews_Bronze.Notebook/notebook-content.py#L102), )
   - MERGE on `recommendationid` (Steam's stable per-review id).
 
 - **[`NB_Steam_Reviews_Silver`](../../Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py).** Clean and score.
   - Parse JSON via `from_json` against the Bronze-sampled schema.
   - 8-step text-cleaning chain: demojize → BBCode + non-ASCII strip → ASCII-art / URL strip → heart-suit long-run substitution → heart-suit short-run substitution → demoji-colon strip → underscore + whitespace collapse → trim.
   - Engineered quality columns (`isVaderEligible`, `hasCredibleText`, `wordLengthRatio`, `asciiRatio`, `uniqueWordRatio`) gate VADER eligibility.
-  - VADER sentiment as `pandas_udf` over Arrow batches (eliminates per-row JVM↔Python serialisation overhead).
+  - VADER sentiment as `pandas_udf` over Arrow batches (eliminates per-row JVM↔Python serialisation overhead) ( see `sentiment_compound` UDF in [`NB_Steam_Reviews_Silver`](../../Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py#L203) )
 
 - **[`NB_Steam_Reviews_Gold`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py).** Review-grain Gold.
   - CDF-incremental read from Silver, gated by `versionControl` watermark.
-  - Per-game normalisation: `max_votesUp` (and other community maxima), `max_reviewLength`, and `playtimeSignal = percent_rank()` all scoped per `gameKey`, feeding the five-signal blend that produces `reviewInfluenceScore`.
+  - Per-game normalisation: `max_votesUp` (and other community maxima), `max_reviewLength`, and `playtimeSignal = percent_rank()` all scoped per `gameKey`, feeding the five-signal blend that produces ( see `influence_formula` CTE in [`reviewInfluenceScore`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py#L486) )
   - Upsert pattern: update only when content hash differs.
 
 - **[`NB_Game_Scores_Gold`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py).** Game-grain Gold.
   - Reads `gold.factReviews` + `silver.games` (IGDB ratings). Bridge tables are consumed downstream by aggregate views, not here.
   - Influence-weighted aggregation (`weightedSentiment`, `weightedVote`) over `gold.factReviews`.
-  - Shrinkage with data-derived priors (`smoothedIGDBRating` uses prior ~0.67; `voteRating` keeps 0.5 because it's a genuine indifference point).
+  - Shrinkage with data-derived priors ( [`smoothedIGDBRating`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py#L286) ) uses prior ~0.67; `voteRating` keeps 0.5 because it's a genuine indifference point.
 
 - **[`NB_1_Bronze`](../../Fabric/NB_1_Bronze.Notebook/notebook-content.py) (IGDB).** Config-driven 7-table loader.
   - Single config dict covers 7 IGDB endpoints (games, genres, themes, platforms, platform_types, external_games, external_game_sources).
@@ -212,8 +212,8 @@ Three categories live here. **ADR-linked** items have full context at the linked
 
 ### Performance under scale
 
-- **Liquid clustering on Bronze, Silver, and Gold review.** Cluster keys match the dominant predicate (Bronze: `recommendationid` for MERGE; Silver: `reviewKey` for MERGE; Gold review `factReviews`: `gameKey`, because the downstream `factGameScores` aggregation groups by `gameKey`). 15k skewed `app_id` values; Hive partitioning would create 15k tiny-file folders, Z-Order rewrites all files on every OPTIMIZE. *([adr-006](../adrs/adr-006-liquid-clustering.md))*
-- **Adaptive salting on hot keys.** `salt = floor(rand() * 32)` only when a `gameKey` exceeds 50,000 reviews. Counter-Strike (2.5M reviews) creates pathological GROUP BY skew; uniform salting wastes shuffle on cold keys. Salting reduces skew but doesn't eliminate it: post-salting the `factReviews` MERGE still shows a 24× max/median per-task ratio in Spark UI. *([adr-005](../adrs/adr-005-adaptive-salting.md))*
+- **Liquid clustering on Bronze, Silver, and Gold review.** Cluster keys match the dominant predicate (Bronze: `recommendationid` for MERGE; Silver: [`CLUSTER BY (reviewKey)`](../../Fabric/NB_DDL.Notebook/notebook-content.py#L164) for MERGE; Gold review `factReviews`: `gameKey`, because the downstream `factGameScores` aggregation groups by `gameKey`). 15k skewed `app_id` values; Hive partitioning would create 15k tiny-file folders, Z-Order rewrites all files on every OPTIMIZE. *([adr-006](../adrs/adr-006-liquid-clustering.md))*
+- **Adaptive salting on hot keys.** `salt = floor(rand() * 32)` only when a `gameKey` exceeds 50,000 reviews. [`salt_factor`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py#L59) and `hot_key_threshold` are tunable at pipeline level. Counter-Strike (2.5M reviews) creates pathological GROUP BY skew; uniform salting wastes shuffle on cold keys. Salting reduces skew but doesn't eliminate it: post-salting the `factReviews` MERGE still shows a 24× max/median per-task ratio in Spark UI. *([adr-005](../adrs/adr-005-adaptive-salting.md))*
 - **OPTIMIZE in a separate scheduled maintenance notebook.** Inlining with MERGE creates locking contention; liquid clustering only rewrites unclustered files since the last run anyway. *([decisions.md](../decisions.md))*
 - **VADER as `pandas_udf` over Arrow batches.** Eliminates JVM↔Python serialisation overhead per row; ran 71M reviews in ~89m on the 8-core trial. The DAG shows two `ArrowEvalPython` stages back-to-back: demoji UDF, then VADER UDF.
 - **Broadcast joins for small lookup tables.** `broadcast(silver.externalGames)` on the `gameKey` resolution, `broadcast(audit_executions)` for the per-execution lookup. Eliminates the shuffle stage on the small side of N-vs-71M joins.
@@ -243,7 +243,7 @@ Three categories live here. **ADR-linked** items have full context at the linked
 - **Landing-zone + audit-queue handshake for the scraper / Bronze hand-off.** The extractor writes JSON to OneLake and inserts an execution row into `loadControlReviews` with `is_loaded = 0`; the Bronze loader polls `is_loaded = 0` rows, upserts the corresponding batches into `bronze.steamReviews`, then flips the flag to `1` on success. Decouples hourly scraping from the daily Spark upsert and keeps the extractor off Spark. *([adr-009](../adrs/adr-009-review-scraper-bronze-loader-decoupling.md))*
 - **`tenacity` retry + HTTP-403 `kill_switch`.** `wait_random_exponential(multiplier=1, max=600)` up to 5 attempts on rate-limits and 5xx, but a 403 trips a `threading.Event` that aborts every worker thread. Steam treats 403 as "your IP is suspect"; aborting before more requests fire is the difference between a rate-limit cooldown and a ban.
 - **High-water-mark cursor early-exit.** Steam returns `recent`-sorted; once `reviews[0].timestamp_created <= high_water_mark`, every subsequent review in the page is older. Exit the batch loop instead of paging through known data.
-- **Pipeline `run_id` propagated end-to-end ("Option A" wiring).** Pipeline-level parameter flows into every notebook and is persisted as `inserted_run_id` / `updated_run_id` on every Gold row plus every `versionControl` audit entry. One id traces a row from Bronze ingest through Silver and Gold for any post-mortem.
+- **Pipeline `run_id` propagated end-to-end ("Option A" wiring).** Pipeline-level parameter flows into every notebook and is persisted as `insert_run_id` / `update_run_id` on every Gold row plus every `versionControl` audit entry. One id traces a row from Bronze ingest through Silver and Gold for any post-mortem.
 - **PARAMETERS cell for runtime overrides.** `load_type`, `environment`, `salt_threshold`, `salt_factor` swappable from the pipeline without code edits. Steam pipelines only; the older IGDB notebooks predate this pattern.
 
 ### Operational quirks

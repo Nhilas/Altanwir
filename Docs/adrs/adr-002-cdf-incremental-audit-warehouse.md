@@ -10,7 +10,7 @@ Silver and Gold notebooks need to know where to start reading the upstream Delta
 
 ## Decision
 
-Store the CDF bookmark in `IGDBAudit.steam.versionControl`, a Fabric SQL Warehouse table accessed via pyodbc + PBI OAuth bearer token, not a Delta table in the Lakehouse. The `versionControl` table does two jobs: audit record (what happened to Silver/Gold on each MERGE) **and** control bookmark (`latest_source_version` stores the Bronze/Silver version that was last processed). Every notebook run calls `check_version(table_name=target_path)` via pyodbc before touching Spark, and calls `insert_version()` after each MERGE to write the new watermark plus full Delta history metadata as `audit_notes` JSON.
+Store the CDF bookmark in `IGDBAudit.steam.versionControl`, a Fabric SQL Warehouse table accessed via pyodbc + PBI OAuth bearer token, not a Delta table in the Lakehouse. The `versionControl` table does two jobs: audit record (what happened to Silver/Gold on each MERGE) **and** control bookmark (`latest_source_version` stores the Bronze/Silver version that was last processed). The CDF bookmark is read via a `check_version` watermark call before any Spark work (see [`NB_Steam_Reviews_Gold`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py#L191) for an example). Each run calls `insert_version()` after the MERGE to write the new watermark plus full Delta history metadata as `audit_notes` JSON.
 
 CDF reads use `spark.read.format("delta").option("readChangeFeed", "true").option("startingVersion", latest_source_version + 1)`, filtered to `('insert', 'update_postimage')`. When no new version exists, the notebook exits cleanly via `notebookutils.notebook.exit()`, which shows as "succeeded" in the pipeline.
 

@@ -51,9 +51,9 @@ flowchart TB
   end
 
   %% Audit warehouse — control plane (floating, off-axis)
-  LRV[("loadReviews (view)<br/>━━━━━━━━━<br/>serves cursor + watermark")]
+  LRV[("loadReviews (view)<br/>━━━━━━━━━<br/>review extraction orchestrator")]
   LCR[("loadControlReviews")]
-  VC[("versionControl")]
+  VC[("versionControl<br/>━━━━━━━━━<br/>serves last source version")]
 
   SteamAPI ==>|"pl_Steam_API · hourly"| NB_API
   NB_API   ==> LZ
@@ -85,13 +85,12 @@ flowchart TB
   GFGS --> VAGG
 
   LCR    --- LRV
-  LRV    -.->|"top-N + cursor"| NB_API
+  LRV    -.->|"serves cursor & watermark"| NB_API
   NB_API -.->|"writes execution<br/>(is_loaded = 0)"| LCR
-  LCR    -.->|"polls is_loaded = 0,<br/>sets to 1"| NB_BRZ
-  VC     -.->|"source delta version"| NB_SLV
-  VC     -.->|"source delta version"| NB_GR
-  VC     -.->|"source delta version"| NB_GS
-
+  LCR    <-.->|"polls is_loaded = 0,<br/>sets to 1"| NB_BRZ
+  VC     -.-> NB_SLV
+  VC     -.-> NB_GR
+  VC     -.-> NB_GS
 
   LRV ~~~ NB_IGDB_B
   LRV ~~~ LCR

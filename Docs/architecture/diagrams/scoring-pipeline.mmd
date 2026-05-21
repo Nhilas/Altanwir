@@ -1,0 +1,59 @@
+%%{init: {'themeVariables':{'fontSize':'18px'}, 'flowchart':{'curve':'basis','nodeSpacing':40,'rankSpacing':70,'subGraphTitleMargin':{'top':12,'bottom':12}}}}%%
+flowchart LR
+
+  subgraph REV["<span style='font-size:24px;font-weight:700;color:#000'>Review grain · gold.factReviews</span>"]
+    direction TB
+    CSm[/"helpful or funny votes;<br/>no. of comments or reactions"/]
+    CS[("communitySignal")]
+    PSm[/"percent-rank of playtime<br/>within the game"/]
+    PS[("playtimeSignal")]
+    LSm[/"log review-length ×<br/>unique-word ratio (per-game)"/]
+    LS[("lengthSignal")]
+    ESm[/"length of !-runs & CAPS,<br/>capped at 0.3"/]
+    ES[("emotionalSignal")]
+    SSm[/"magnitude of the VADER<br/>compound score"/]
+    SS[("sentimentSignal")]
+    RIS[("reviewInfluenceScore")]
+  end
+
+  subgraph GAME["<span style='font-size:24px;font-weight:700;color:#000'>Game grain · gold.factGameScores</span>"]
+    direction TB
+    AGG[["influence-weighted aggregation"]]
+    SHR[["scores get shrinked towards global average;<br/>greater sample = less shrinking"]]
+    WSR[("weightedSentimentRating")]
+    WVR[("weightedVoteRating")]
+    SVA[("sentimentVoteAlignment = <br/>WSR − WVR")]
+  end
+
+  CSm ---|"× 1.5"| CS
+  PSm ---|"× 1.0"| PS
+  LSm ---|"× 0.5"| LS
+  ESm ---|"× 0.3"| ES
+  SSm ---|"× 1.0"| SS
+
+  CS --> RIS
+  PS --> RIS
+  LS --> RIS
+  ES --> RIS
+  SS --> RIS
+  RIS ==>|"per-review weight"| AGG
+  AGG ==> SHR
+  SHR ==> WSR
+  SHR ==> WVR
+  WSR ==> SVA
+  WVR ==> SVA
+
+  classDef goldT fill:#fbbf24,stroke:#854d0e,stroke-width:2px,color:#000
+  classDef proc  fill:#fda4af,stroke:#9f1239,stroke-width:2.5px,color:#000
+  classDef gloss fill:#3b82f688 ,stroke:#3730a3,stroke-width:1.5px,color:#000
+
+  class CS,PS,LS,ES,SS,RIS,WSR,WVR,SVA goldT
+  class AGG,SHR proc
+  class CSm,PSm,LSm,ESm,SSm gloss
+
+  linkStyle 0,1,2,3,4 stroke:#3730a3,stroke-width:1.5px,color:#1e3a8a
+  linkStyle 5,6,7,8,9 stroke:#334155,stroke-width:2px,color:#1c1917
+  linkStyle 10,11,12,13,14,15 stroke:#f43f5eaa,stroke-width:4.5px,color:#3b0d12
+
+  style REV  fill:#fbbf2480,stroke:#854d0e,stroke-width:2px
+  style GAME fill:#fbbf2480,stroke:#854d0e,stroke-width:2px

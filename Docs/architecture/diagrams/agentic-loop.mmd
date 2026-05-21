@@ -1,0 +1,53 @@
+%%{init: {'themeVariables':{'fontSize':'18px'}, 'flowchart':{'curve':'basis','nodeSpacing':40,'rankSpacing':65,'subGraphTitleMargin':{'top':12,'bottom':12}}}}%%
+flowchart LR
+
+  subgraph SUB["<span style='font-size:24px;font-weight:700;color:#000'>Substrate (post-Fabric)</span>"]
+    direction TB
+    FG[("Fabric Gold<br/>2 facts + 13 views")]
+    PQ[/"parquet exports<br/>part-*.snappy.parquet"/]
+    DDB[["DuckDB harness<br/>init.duckdb.sql · catalog-only"]]
+    VWS[("scaffolding:<br/>gold serving views")]
+  end
+
+  subgraph LOOP["<span style='font-size:24px;font-weight:700;color:#000'>Agent loop</span>"]
+    direction LR
+    SCAF["scaffolding:<br/>canon, query-rules"]
+    DRAFT[["agent drafts finding"]]
+    GATE{"verification<br/>sub-agent"}
+    FIND[/"saves writeup in Docs/findings/<br/>━━━━━━<br/>saves queries and results in Docs/findings/[slug]/sources"/]
+  end
+
+  FG ==> PQ
+  PQ ==> DDB
+  DDB ==> VWS
+  VWS ==>|"agent queries"| DRAFT
+  SCAF --> DRAFT
+  DRAFT ==> GATE
+  GATE <-.->|"numbers reproduce"| VWS
+  GATE ==>|"pass"| FIND
+  GATE -.->|"fail · redraft"| DRAFT
+
+  VWS ~~~ SCAF
+
+  classDef goldT fill:#fbbf24,stroke:#854d0e,stroke-width:2px,color:#000
+  classDef landingFile fill:#fdba74,stroke:#9a3412,stroke-width:2px,color:#000
+  classDef notebook fill:#fda4af,stroke:#9f1239,stroke-width:2.5px,color:#000
+  classDef silverT fill:#cbd5e1,stroke:#334155,stroke-width:2px,color:#000
+  classDef audit fill:#a7f3d0,stroke:#064e3b,stroke-width:2px,color:#000
+  classDef viewT fill:#5eead4,stroke:#0f766e,stroke-width:2px,color:#000
+
+  class FG goldT
+  class PQ landingFile
+  class DDB notebook
+  class VWS viewT
+  class SCAF silverT
+  class DRAFT notebook
+  class GATE audit
+  class FIND landingFile
+
+  linkStyle 0,1,2,3 stroke:#7c3aedaa,stroke-width:4.5px,color:#4c1d95
+  linkStyle 4,5,7 stroke:#334155,stroke-width:2.5px,color:#1c1917
+  linkStyle 6,8 stroke:#334155,stroke-width:2.5px,color:#1c1917
+
+  style SUB  fill:#fbbf2480,stroke:#854d0e,stroke-width:2px
+  style LOOP fill:#cbd5e180,stroke:#334155,stroke-width:2px

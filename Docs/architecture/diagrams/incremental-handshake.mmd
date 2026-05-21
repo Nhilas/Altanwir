@@ -1,0 +1,29 @@
+%%{init: {'themeVariables':{'fontSize':'15px','actorBkg':'#cbd5e1','actorBorder':'#334155','actorTextColor':'#000','noteBkgColor':'#a7f3d0','noteBorderColor':'#064e3b','noteTextColor':'#000','signalColor':'#334155','signalTextColor':'#1c1917','sequenceNumberColor':'#ffffff'}}}%%
+sequenceDiagram
+    autonumber
+    participant API as Steam Storefront API
+    participant SCR as NB_Steam_Reviews<br/>(scraper · plain Jupyter)
+    participant LZ as OneLake<br/>/Files/Steam/Reviews/
+    participant AQ as loadReviews<br/>(audit view)
+    participant BRZ as NB_Steam_Reviews_Bronze
+    participant VC as versionControl<br/>(CDF watermark)
+    participant MED as Silver → Gold<br/>(CDF-incremental)
+
+    rect rgba(254, 205, 211, 0.94)
+    Note over SCR,AQ: pl_Steam_API · hourly · no Spark cluster
+    AQ-->>SCR: vw_loadReviews snapshot (top-N + cursor + watermark)
+    SCR->>API: scrape (ThreadPool · tenacity retry · 403 kill-switch)
+    API-->>SCR: review JSON
+    SCR->>LZ: write batched JSON
+    SCR->>AQ: insert execution row (is_loaded = 0)
+    end
+
+    rect rgba(221, 214, 254, 0.94)
+    Note over BRZ,MED: pl_Steam_Reviews_Medallion_Incremental · daily · Spark
+    AQ-->>BRZ: poll is_loaded = 0 rows
+    LZ-->>BRZ: read the landed batches
+    BRZ->>AQ: set is_loaded = 1 (after successful upsert)
+    VC-->>MED: source delta version (watermark gate)
+    Note right of MED: CDF _change_type IN (insert, update_postimage)<br/>MERGE-on-hash · SCD Type 1 · re-runs are no-ops
+    MED->>VC: advance watermark
+    end

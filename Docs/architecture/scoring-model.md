@@ -14,6 +14,7 @@ Every formula here exists in code under `Fabric/`. This doc explains *why*: the 
 - [Game-grain aggregation: influence-weighted](#game-grain-aggregation-influence-weighted)
 - [Bayesian shrinkage with empirically-derived priors](#bayesian-shrinkage-with-empirically-derived-priors)
   - [Priors are derived from the dataset, not chosen](#priors-are-derived-from-the-dataset-not-chosen)
+- [Score composition (diagram)](#score-composition-diagram)
 - [Tier calibration (S–F)](#tier-calibration-sf)
 - [sentimentVoteAlignment: the divergence metric](#sentimentvotealignment-the-divergence-metric)
   - [What the tails look like](#what-the-tails-look-like)
@@ -137,6 +138,12 @@ An early build of `smoothedIGDBRating` used `prior = 0.5` (the textbook "no info
 | `voteRating` (raw `pctVotedUp`) | **0.5** | `totalReviews` |
 
 `voteRating` is the deliberate exception: it scores `pctVotedUp`, a binary signal where 0.5 is a *genuine* indifference point (equal up- and down-votes) rather than the population mean. Shrinking toward 0.89 there would be wrong. A small-sample 100%-positive game would shrink toward 0.89, which carries a meaning that the sample doesn't support.
+
+## Score composition (diagram)
+
+<a href="diagrams/scoring-pipeline.png"><img src="diagrams/scoring-pipeline.png" alt="Five gated signals fan into reviewInfluenceScore, then influence-weighted aggregation, shrinkage, and the game-grain ratings and their alignment"></a>
+
+*The path from per-review signals to game-grain ratings. Five gated signals blend by weight into `reviewInfluenceScore`, which weights the game-grain aggregation; shrinkage toward empirical priors yields `weightedSentimentRating` and `weightedVoteRating`, whose difference is `sentimentVoteAlignment`. VADER eligibility (above) and tier calibration (below) are separate steps.*
 
 ## Tier calibration (S–F)
 

@@ -10,7 +10,7 @@ Altanwir is a Medallion lakehouse (Bronze → Silver → Gold) on Microsoft Fabr
   - [Layer contracts](#layer-contracts)
   - [Environments](#environments)
   - [Run-time profile](#run-time-profile-prod-2026-04-23)
-  - [Control plane](#control-plane)
+  - [Control plane (+ incremental-handshake diagram)](#control-plane)
   - [Notebook responsibilities](#notebook-responsibilities)
 - [Data model](#data-model)
   - [Schema map](#schema-map)
@@ -91,8 +91,8 @@ In narrative form, with the operational detail per pipeline:
   - Surrogate keys are created for every entity using SHA-256
 
 - **Gold.** Derive, aggregate, serve.
-  - Review-grain signal columns + per-game-normalised `reviewInfluenceScore`.
-  - Game-grain influence-weighted aggregates with shrinkage.
+  - Review-grain [signal columns](scoring-model.md#score-composition-diagram) + per-game-normalised [`reviewInfluenceScore`](scoring-model.md#score-composition-diagram).
+  - Game-grain [influence-weighted aggregates](scoring-model.md#score-composition-diagram) with [shrinkage](scoring-model.md#score-composition-diagram).
   - All metrics flat, no complex types ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)); presentation logic in serving views ([adr-004](../adrs/adr-004-percentiles-in-views.md), [adr-008](../adrs/adr-008-store-wide-expose-narrow.md)).
 
 - **Common contract** (all layers).
@@ -117,7 +117,11 @@ Both lakehouses share the same Fabric trial F-capacity (one Spark cluster at a t
 
 ### Control plane
 
-The audit warehouse (`IGDBAudit`, separate Fabric SQL Warehouse, accessed via pyodbc + PBI OAuth) holds `loadControlReviews` (per-execution log), `versionControl` (CDF watermarks per Delta table), and `loadOrchestratorReviews` (game prioritisation queue). Watermark and orchestration reads do not require a Spark cluster; see [adr-002](../adrs/adr-002-cdf-incremental-audit-warehouse.md).
+The audit warehouse (`IGDBAudit`, separate Fabric SQL Warehouse, accessed via pyodbc + PBI OAuth) holds `loadControlReviews` (per-execution log), `versionControl` (CDF watermarks per Delta table), and `loadOrchestratorReviews` (game prioritisation queue). `loadReviews` is a view that combines `loadControlReviews` (extraction-grain holding current state, watermarks and cursors) and `loadOrchestratorRevies` (game-grain control table).
+
+<a href="diagrams/incremental-handshake.png"><img src="diagrams/incremental-handshake.png" alt="Sequence diagram of one incremental cycle: hourly scrape to landing-zone queue, daily Bronze poll and MERGE, CDF-gated Silver and Gold"></a>
+
+*One incremental cycle end to end. See also [adr-002](../adrs/adr-002-cdf-incremental-audit-warehouse.md) (CDF watermark) and [adr-009](../adrs/adr-009-review-scraper-bronze-loader-decoupling.md) (scraper / Bronze decoupling).*
 
 ### Notebook responsibilities
 

@@ -71,7 +71,7 @@ Three finding docs walk through what surfaced:
 
 The Gold serving views are exported as spreadsheets under [`Docs/exports/02_Analytics/`](Docs/exports/02_Analytics/) (game scores plus genre / theme / platform aggregates).
 
-All game-grain level findings can be replicated locally
+All game-grain level findings can be replicated locally as detailed under `Setup` in [`duckdb readme`](DuckDB/README.md)
 
 ## Repository layout
 
@@ -90,7 +90,7 @@ Altanwir/
 │   ├── <a href="DuckDB/README.md">README.md</a>
 │   ├── <a href="DuckDB/agentic-analytics.md">agentic-analytics.md</a>         # the agent-loop methodology
 │   └── <a href="DuckDB/init.duckdb.sql">init.duckdb.sql</a>              # harness over the committed Gold parquet slice
-├── Fabric/                          # Spark notebooks + Data Factory pipelines
+├── Fabric/                          # Spark notebooks, Data Factory pipelines, SQL views
 │   ├── <a href="Fabric/NB_Steam_Reviews.Notebook/notebook-content.py">NB_Steam_Reviews.Notebook/</a>   # threaded Steam scraper (API extractor, not Spark)
 │   ├── <a href="Fabric/NB_Steam_Reviews_Bronze.Notebook/notebook-content.py">NB_Steam_Reviews_Bronze.Notebook/</a>
 │   ├── <a href="Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py">NB_Steam_Reviews_Silver.Notebook/</a>
@@ -98,7 +98,9 @@ Altanwir/
 │   ├── <a href="Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py">NB_Game_Scores_Gold.Notebook/</a>
 │   ├── <a href="Fabric/NB_1_Bronze.Notebook/notebook-content.py">NB_1_Bronze.Notebook/</a>        # IGDB loader
 │   ├── <a href="Fabric/NB_2_Silver.Notebook/notebook-content.py">NB_2_Silver.Notebook/</a>        # IGDB dim + bridge build
-│   └── pl_*.DataPipeline/           # 4 orchestration pipelines
+│   ├── pl_*.DataPipeline/           # 4 orchestration pipelines
+│   ├── <a href="Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/">IGDBAnalytics.SQLEndpoint/gold/Views/</a>   # Gold serving views (SQL)
+│   └── <a href="Fabric/IGDBAudit.Warehouse/steam/">IGDBAudit.Warehouse/steam/</a>        # audit-plane watermark + observability views and tables (SQL)
 └── <a href="Labs/">Labs/</a>                            # local prototyping (DuckDB, dbt, Fabric PoCs)
 </pre>
 

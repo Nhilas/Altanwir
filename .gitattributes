@@ -1,0 +1,23 @@
+# ============================================================================
+# GitHub Linguist language-bar overrides
+# ----------------------------------------------------------------------------
+# Fabric stamps "-- Auto Generated (Do not modify)" onto every exported .sql
+# file, which makes Linguist treat them as machine-generated and drop them from
+# the language bar.
+# ============================================================================
+
+# Gold serving views.
+Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/*.sql   linguist-generated=false linguist-detectable=true
+
+# audit-plane views (watermark + observability).
+Fabric/IGDBAudit.Warehouse/steam/Views/*.sql        linguist-generated=false linguist-detectable=true
+
+# SQL outside Fabric (no Auto-Generated stamp; ensure it counts).
+DuckDB/**/*.sql   linguist-detectable=true
+Labs/**/*.sql     linguist-detectable=true
+
+# Keep the Docs/ query exports classified as documentation, not code.
+Docs/**/*.sql     linguist-documentation=true
+
+# Note: auto-generated table DDL (Fabric-stamped, no override here) stays out of
+# the bar by Linguist default. Only the hand-written views above are forced in.

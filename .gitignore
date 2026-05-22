@@ -6,6 +6,31 @@ scratch/
 ## DuckDB
 Labs/Lab00_duckdb/data/
 
+## DuckDB committed parquet slice (#121) — ignore all data, then un-ignore only the game-grain deps
+DuckDB/data/**
+!DuckDB/data/
+!DuckDB/data/silver/
+!DuckDB/data/silver/games/
+!DuckDB/data/silver/games/**
+!DuckDB/data/silver/genres/
+!DuckDB/data/silver/genres/**
+!DuckDB/data/silver/platforms/
+!DuckDB/data/silver/platforms/**
+!DuckDB/data/silver/themes/
+!DuckDB/data/silver/themes/**
+!DuckDB/data/silver/bridgegamegenres/
+!DuckDB/data/silver/bridgegamegenres/**
+!DuckDB/data/silver/bridgegameplatforms/
+!DuckDB/data/silver/bridgegameplatforms/**
+!DuckDB/data/silver/bridgegamethemes/
+!DuckDB/data/silver/bridgegamethemes/**
+!DuckDB/data/gold/
+!DuckDB/data/gold/factGameScores/
+!DuckDB/data/gold/factGameScores/**
+# keep the committed slice pure parquet (drop Spark _SUCCESS / .crc markers)
+DuckDB/data/**/_SUCCESS
+DuckDB/data/**/*.crc
+
 ## DBT
 target/
 dbt_packages/

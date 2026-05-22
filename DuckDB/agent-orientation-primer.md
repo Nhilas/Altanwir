@@ -8,13 +8,14 @@
 
 ---
 
-A canonical reference for ad-hoc analytics over the Altanwir Steam-reviews × IGDB lakehouse via DuckDB on the Gold parquet exports. Built for future agents dropping the doc into context to query without rediscovery; readable end-to-end by a hiring manager who has never seen the project.
+This is a canonical reference for ad-hoc analytics over the Altanwir Steam-reviews × IGDB lakehouse via DuckDB on the Gold parquet exports. Built for future agents dropping the doc into context to query without rediscovery.
 
-**Database file**: `G:\Work\Altanwir-scratch\Lab03_duckdb_gold\altanwir-gold.duckdb` (gitignored, OneDrive-synced).
-**Parquet root**: `G:/Work/IGDB-Blitz/IGDB-exports/<schema>/<table>/part-*.snappy.parquet`.
-**Harness**: `g:\Work\Altanwir\DuckDB\init.duckdb.sql`.
-**Source-of-truth view bodies**: `g:\Work\Altanwir\Fabric\IGDBAnalytics.SQLEndpoint\gold\Views\*.sql`.
-**Source-of-truth notebooks**: `g:\Work\Altanwir\Fabric\NB_*.Notebook\notebook-content.py`.
+**Database file**: `DuckDB/altanwir-gold.duckdb`
+**Harness**: `DuckDB/init.duckdb.sql`
+**Parquet root**: `DuckDB/data/<schema>/<table>/part-*.snappy.parquet`
+**Harness**: `DuckDB/init.duckdb.sql`.
+**Source-of-truth view bodies**: `Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/*.sql`.
+**Source-of-truth notebooks**: `Fabric/NB_*.Notebook/notebook-content.py`.
 
 The `.duckdb` file holds only the catalog (schemas + view definitions). All data lives in the parquet exports; DuckDB scans them on every query.
 
@@ -36,7 +37,7 @@ A single source of truth for column meanings, locations, types, scales, and deri
 - **IGDBAudit Fabric warehouse** (`steam.loadControlReviews`, `steam.versionControl`, `steam.loadOrchestratorReviews`, `steam.vw_loadReviews*`). The audit warehouse is a separate Fabric SQL Warehouse for orchestration and CDF watermarks; it is not queryable through the DuckDB harness.
 - **Bronze tables** (raw JSON ingest). The DuckDB harness only exposes silver and gold; bronze structure is documented in `Docs/architecture/overview.md`.
 - **Pipeline orchestration** (DataFactory pipelines, run history, scheduling). See `Docs/architecture/overview.md` §Pipelines.
-- **ADR rationale and history**. See `Docs/adrs/`.
+- **ADR rationale and history**. See `Docs/adrs/`, `Docs/decisions.md`, `Docs/quirks/`.
 
 **Where to look when this doc is wrong**: §10 Source-of-truth pointers. The Fabric notebooks and view DDL files are absolute truth; if this doc disagrees with them, the code wins.
 
@@ -251,7 +252,7 @@ Every term that appears anywhere in `Docs/architecture/`, `Docs/findings/`, or t
 
 **Rule**: any term defined in `Docs/architecture/`, `Docs/findings/`, or this doc must appear in §2b above. Adding a new finding or scoring-model section that introduces a term means adding the term here in the same change. The Conventions table (§2a) covers morphemes, not specific columns; it grows only when a new naming convention is adopted across multiple columns.
 
-If the source code (`Fabric/`) and this doc disagree, the code wins. File and update this doc accordingly. The verification workflow that built this doc lives in `G:\Work\Altanwir-scratch\sll-pro-workspace\` (schema oracle + per-domain specs + audit reports).
+If the source code (`Fabric/`) and this doc disagree, the code wins. File and update this doc accordingly.
 
 ---
 

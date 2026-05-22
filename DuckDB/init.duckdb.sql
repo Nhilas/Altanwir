@@ -19,10 +19,17 @@
 --      etc.)
 --   3. .read's each Fabric view file in dependency order
 --
--- PARQUET ROOT ---------------------------------------------------------------
--- Default parquet root: G:/Work/IGDB-Blitz/IGDB-exports/
--- Layout: <root>/<schema>/<table>/part-*.snappy.parquet
--- Exports live outside the repo (gitignored).
+-- PATHS ----------------------------------------------------------------------
+-- Launch DuckDB from THIS folder (DuckDB/). Paths resolve against the process
+-- working directory, not the script location:
+--   Parquet base tables: data/<schema>/<table>/part-*.parquet   (i.e. DuckDB/data/)
+--   Fabric view DDLs:     ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/*.sql
+--
+-- The game-grain slice is committed in-repo (DuckDB/data/). The review-grain
+-- tables are not shipped (size): querying gold.factreviews, silver.steamreviews,
+-- or gold.vw_factReviews locally errors with a missing-file message. Every other
+-- view runs. The view DEFINITIONS stay here so this harness remains a faithful
+-- mirror of Fabric.
 -- -----------------------------------------------------------------------------
 
 
@@ -40,34 +47,34 @@ CREATE OR REPLACE SCHEMA gold;
 
 -- Dimension sources
 CREATE OR REPLACE VIEW silver.games AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/games/*.parquet');
+SELECT * FROM read_parquet('data/silver/games/*.parquet');
 
 CREATE OR REPLACE VIEW silver.genres AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/genres/*.parquet');
+SELECT * FROM read_parquet('data/silver/genres/*.parquet');
 
 CREATE OR REPLACE VIEW silver.platforms AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/platforms/*.parquet');
+SELECT * FROM read_parquet('data/silver/platforms/*.parquet');
 
 CREATE OR REPLACE VIEW silver.themes AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/themes/*.parquet');
+SELECT * FROM read_parquet('data/silver/themes/*.parquet');
 
 -- Bridge tables (game ↔ genre/platform/theme)
 CREATE OR REPLACE VIEW silver.bridgegamegenres AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/bridgegamegenres/*.parquet');
+SELECT * FROM read_parquet('data/silver/bridgegamegenres/*.parquet');
 
 CREATE OR REPLACE VIEW silver.bridgegameplatforms AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/bridgegameplatforms/*.parquet');
+SELECT * FROM read_parquet('data/silver/bridgegameplatforms/*.parquet');
 
 CREATE OR REPLACE VIEW silver.bridgegamethemes AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/bridgegamethemes/*.parquet');
+SELECT * FROM read_parquet('data/silver/bridgegamethemes/*.parquet');
 
 -- External-id mapping (IGDB ↔ Steam)
 CREATE OR REPLACE VIEW silver.externalgames AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/externalgames/*.parquet');
+SELECT * FROM read_parquet('data/silver/externalgames/*.parquet');
 
 -- Review fact source
 CREATE OR REPLACE VIEW silver.steamreviews AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/steamreviews/*.parquet');
+SELECT * FROM read_parquet('data/silver/steamreviews/*.parquet');
 
 
 -- =============================================================================
@@ -76,11 +83,11 @@ SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/silver/steamreviews/
 
 -- Review-grain fact (~71M rows)
 CREATE OR REPLACE VIEW gold.factreviews AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/gold/factreviews/*.parquet');
+SELECT * FROM read_parquet('data/gold/factreviews/*.parquet');
 
 -- Game-grain aggregated fact
 CREATE OR REPLACE VIEW gold.factgamescores AS
-SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/gold/factGameScores/*.parquet');
+SELECT * FROM read_parquet('data/gold/factGameScores/*.parquet');
 
 
 -- =============================================================================
@@ -93,22 +100,22 @@ SELECT * FROM read_parquet('G:/Work/IGDB-Blitz/IGDB-exports/gold/factGameScores/
 -- =============================================================================
 
 -- Tier 1: dims
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_dimGames.sql
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_dimGenre.sql
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_dimPlatform.sql
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_dimTheme.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_dimGames.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_dimGenre.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_dimPlatform.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_dimTheme.sql
 
 -- Tier 2: game-bridge views
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_gameGenres.sql
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_gamePlatforms.sql
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_gameThemes.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_gameGenres.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_gamePlatforms.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_gameThemes.sql
 
 -- Tier 3: facts
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factReviews.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factReviews.sql
 
 -- Tier 4: aggs + catalogue
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_aggGenres.sql
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_aggPlatforms.sql
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_aggThemes.sql
-.read G:/Work/Altanwir/Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_gameCatalogue.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_aggGenres.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_aggPlatforms.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_aggThemes.sql
+.read ../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_gameCatalogue.sql

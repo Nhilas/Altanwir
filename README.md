@@ -71,6 +71,8 @@ Three finding docs walk through what surfaced:
 
 The Gold serving views are exported as spreadsheets under [`Docs/exports/02_Analytics/`](Docs/exports/02_Analytics/) (game scores plus genre / theme / platform aggregates).
 
+All game-grain level findings can be replicated locally
+
 ## Repository layout
 
 <pre>
@@ -84,10 +86,10 @@ Altanwir/
 │   ├── <a href="Docs/decisions.md">decisions.md</a>                 # 11 lightweight calls that didn't need a full ADR
 │   ├── <a href="Docs/findings/">findings/</a>                    # 6 analytical writeups
 │   └── <a href="Docs/quirks/">quirks/</a>                      # implementation quirks and workarounds (Fabric, Spark, VADER)
-├── DuckDB/
+├── DuckDB/                          # runnable: clone + DuckDB, reproduce a finding (see DuckDB/README.md "## Setup")
 │   ├── <a href="DuckDB/README.md">README.md</a>
 │   ├── <a href="DuckDB/agentic-analytics.md">agentic-analytics.md</a>         # the agent-loop methodology
-│   └── <a href="DuckDB/init.duckdb.sql">init.duckdb.sql</a>              # harness over Gold parquet exports
+│   └── <a href="DuckDB/init.duckdb.sql">init.duckdb.sql</a>              # harness over the committed Gold parquet slice
 ├── Fabric/                          # Spark notebooks + Data Factory pipelines
 │   ├── <a href="Fabric/NB_Steam_Reviews.Notebook/notebook-content.py">NB_Steam_Reviews.Notebook/</a>   # threaded Steam scraper (API extractor, not Spark)
 │   ├── <a href="Fabric/NB_Steam_Reviews_Bronze.Notebook/notebook-content.py">NB_Steam_Reviews_Bronze.Notebook/</a>

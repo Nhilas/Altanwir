@@ -23,7 +23,7 @@ Every formula here exists in code under `Fabric/`. This doc explains *why*: the 
 
 ## VADER and eligibility
 
-> [!IMPORTANT]
+> [!NOTE]
 > **Code:** [`Fabric/NB_Steam_Reviews_Silver.Notebook`](../../Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py). Text cleaning, engineered quality columns (`isVaderEligible`, `hasCredibleText`, `wordLengthRatio`, `asciiRatio`, `uniqueWordRatio`), VADER `pandas_udf` invocation.
 
 Sentiment columns are produced with [VADER](https://github.com/cjhutto/vaderSentiment), a lexicon-based scorer for short, social-media-style English. Two design choices wrap it: a multi-stage text-cleaning chain in Silver, and a hard eligibility gate that drops noisy reviews before scoring.
@@ -63,7 +63,7 @@ The full eligibility logic and the NULL-no-fallback contract for downstream aggr
 
 ## reviewInfluenceScore: per-review weighted blend
 
-> [!IMPORTANT]
+> [!NOTE]
 > **Code:** [`Fabric/NB_Steam_Reviews_Gold.Notebook`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py). Derives `communitySignal`, `lengthSignal`, `emotionalSignal`, `playtimeSignal`, `sentimentSignal`, and assembles `reviewInfluenceScore`. Per-game `max_*` aggregations are computed in the `df_silver_game_stats` DataFrame (surfaced as the `silver_reviews_with_game_stats` temp view); the `aux_silver` SQL CTE reads from that temp view to compute per-review ratios and direction columns.
 
 Every review in `gold.factReviews` has a single `reviewInfluenceScore`, which is assembled in the [`influence_formula`](../../Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py#L474) CTE: It collapses the five weighted signals into the final score and weights its contribution to all downstream game-grain aggregates. Five signals feed it, each gated by a quality flag:
@@ -101,7 +101,7 @@ Per-game normalisation has a real CDF cost. When 15,505 new reviews land for an 
 
 ## Game-grain aggregation: influence-weighted
 
-> [!IMPORTANT]
+> [!NOTE]
 > **Code:** [`Fabric/NB_Game_Scores_Gold.Notebook`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py). Game-grain aggregation, prior derivation, MERGE into `gold.factGameScores`.
 
 Game-grain aggregates in `gold.factGameScores` are influence-weighted means ( [`weightedSentimentRating`](../../Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py#L340) is the EB-shrunken version of `pctWeightedSentiment` produced in `NB_Game_Scores_Gold` ). Each review contributes proportionally to its `reviewInfluenceScore`:
@@ -147,6 +147,7 @@ An early build of `smoothedIGDBRating` used `prior = 0.5` (the textbook "no info
 
 ## Tier calibration (S–F)
 
+> [!NOTE]
 > **Code:** [`Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql`](../../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql) (T-SQL view in the Fabric SQL Endpoint, mirrored into DuckDB via [`init.duckdb.sql`](../../DuckDB/init.duckdb.sql)). Tier banding is presentation-layer logic. See [adr-004](../adrs/adr-004-percentiles-in-views.md), [adr-008](../adrs/adr-008-store-wide-expose-narrow.md).
 
 `vw_factGameScores` exposes three independent tier columns. [`IGDBRatingTier`](../../Fabric/IGDBAnalytics.SQLEndpoint/gold/Views/vw_factGameScores.sql#L36) (and its siblings `weightedSentimentTier`, `weightedVoteTier`) are `CASE` expressions keyed to the absolute thresholds below:

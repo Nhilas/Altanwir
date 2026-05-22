@@ -165,7 +165,8 @@ The audit warehouse (`IGDBAudit`, separate Fabric SQL Warehouse, accessed via py
 
 ## Data model
 
-Original design intent was an array-OBT, but Fabric's SQL analytics endpoint cannot surface complex types ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)). Dimensional modelling was the move.
+> [!NOTE]
+> Original design intent was an array-OBT, but Fabric's SQL analytics endpoint cannot surface complex types ([adr-001](../adrs/adr-001-dimensional-gold-over-array-obt.md)). Dimensional modelling was the move.
 
 All facts are flat; M:M dimensions live in bridge views over Silver. The Gold layer stores wide and exposes narrow through serving views ([adr-008](../adrs/adr-008-store-wide-expose-narrow.md)).
 

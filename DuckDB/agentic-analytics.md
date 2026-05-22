@@ -2,7 +2,7 @@
 
 ## What this is
 
-This layer was made after the Fabric trial ran out. Fabric covered the production pipeline through expiry; with cluster capacity gone, the Gold parquet exports were loaded into a local DuckDB harness to keep ad-hoc analytics running. The agentic loop runs against that harness, with three artifacts as scaffolding: a domain canon ([`agent-orientation-primer.md`](agent-orientation-primer.md)), this methodology, and a query-rules doc ([`query-rules.md`](query-rules.md)).
+This layer was made after the Fabric trial ran out. Fabric covered the production pipeline through expiry; with cluster capacity gone, the Gold parquet exports were loaded into a local DuckDB harness to keep ad-hoc analytics running. The game-grain slice of those exports is committed under `DuckDB/data/`, so the harness and this loop run from a fresh clone with no Fabric access. The agentic loop runs against that harness, with three artifacts as scaffolding: a domain canon ([`agent-orientation-primer.md`](agent-orientation-primer.md)), this methodology, and a query-rules doc ([`query-rules.md`](query-rules.md)).
 
 <a href="../Docs/architecture/diagrams/agentic-loop.png"><img src="../Docs/architecture/diagrams/agentic-loop.png" alt="DuckDB harness over Fabric Gold parquet exports building the gold serving views, feeding a verification-gated agent loop that files findings"></a>
 

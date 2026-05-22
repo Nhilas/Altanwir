@@ -32,7 +32,7 @@ Two source systems feed the lakehouse: the Steam Storefront API for reviews and 
 
 ### Diagram
 
-<a href="diagrams/architecture.png"><img src="diagrams/architecture.png" alt="Full pipeline architecture — sources, medallion layers, audit warehouse, control plane"></a>
+<a href="diagrams/architecture.png"><img src="diagrams/architecture.png" alt="Full pipeline architecture: sources, medallion layers, audit warehouse, control plane"></a>
 
 Source: [`diagrams/architecture.mmd`](diagrams/architecture.mmd).
 

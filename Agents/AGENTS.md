@@ -36,15 +36,9 @@ If a fact is in conflict between files, the order of authority is: code > `overv
 
 ---
 
-## Scratch Space & Active Planning
+## Scratch & planning
 
-**`G:\Work\Altanwir-scratch\`** is the canonical workspace for active planning, staging, prompt generation, and brain-pipeline parking. Always check here for in-flight context.
-
-- **Plans & cluster folders:** `plan-{slug}.md` files at the root for single-task plans; `#<issue>-<slug>/` folders for cluster work (scope/spec/plan triad inside each).
-- **Brain-pipeline canon:** `z-Tasks\brain-pipeline.md` (Bronze → Silver → Gold cognitive tiers, duration tiers, SKIP policy) and `z-Tasks\brain-taxonomy.md` (phase canon, axes, taxonomies). Read both before any workflow that touches Landing.md, Processed.md, GitHub Issues, or sprint planning.
-- **Brain-pipeline parking lot:** `z-Tasks\Bronze\Landing.md` (raw captures) and `z-Tasks\Silver\Processed-{Domain}.md` (organized by domain). Managed by the `/triage` + `/process-landing` skills.
-- **Logs:** `z-Tasks\Logs\Planning-YYYYMMDD.md` (current sprint state) and `z-Tasks\Logs\Triage-YYYYMMDD.md` (audit trail).
-- **Helper artifacts:** root of `Altanwir-scratch\` holds random helpers, intermediate steps, raw source pastes. `Archive\` holds completed cluster folders.
+Active planning, staging, and scratch artifacts live in a local workspace outside the repo (gitignored). Nothing there is required to understand or run this project.
 
 ---
 
@@ -80,7 +74,7 @@ If a fact is in conflict between files, the order of authority is: code > `overv
 
 ## Architecture
 
-Two source pipelines (Steam reviews via custom multi-threaded scraper, IGDB via API) land raw JSON in Bronze, get cleaned and enriched in Silver (text quality gates, VADER sentiment, hash-based change detection, liquid clustering), and synthesize in Gold into a star schema (`factReviews` at review grain, `factGameScores` at game grain, plus aggregate views by genre / platform / theme). Empirical Bayes priors on confidence-adjusted ratings handle the small-sample-size problem. Audit and version control live in a separate Fabric Warehouse, accessed via pyodbc rather than Spark. The full pipeline ran on 77 million reviews in 2h 33m on trial capacity. Adaptive salting on hot keys (e.g. Counter-Strike at 2.5M reviews) applied at gold level, in the transition from review to game grain.
+Two source pipelines (Steam reviews via custom multi-threaded scraper, IGDB via API) land raw JSON in Bronze, get cleaned and enriched in Silver (text quality gates, VADER sentiment, hash-based change detection, liquid clustering), and synthesize in Gold into a star schema (`factReviews` at review grain, `factGameScores` at game grain, plus aggregate views by genre / platform / theme). Empirical Bayes priors on confidence-adjusted ratings handle the small-sample-size problem. Audit and version control live in a separate Fabric Warehouse, accessed via pyodbc rather than Spark. The full pipeline ran on 71M reviews in 2h 28m on trial capacity. Adaptive salting on hot keys (e.g. Counter-Strike at 2.5M reviews) applied at gold level, in the transition from review to game grain.
 
 Detailed architecture: `Docs/architecture/overview.md`. Scoring model detail: `Docs/architecture/scoring-model.md`.
 
@@ -138,34 +132,13 @@ If a task requires more than ~10 similar tool calls (e.g., adding GitHub issues 
 
 ## Context freshness
 
-At the start of any session that references `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `brain-pipeline.md`, or other convention files, **re-read them**. These files change often; stale cached assumptions cause real friction. Re-read also when the conversation shifts to a meaningfully different task.
+At the start of any session that references `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or other convention files, **re-read them**. These files change often; stale cached assumptions cause real friction. Re-read also when the conversation shifts to a meaningfully different task.
 
 ---
 
-## Superpowers (optional methodology)
+## Per-tool config
 
-Superpowers skills are installed globally at `C:\Users\Nhilas\.claude\skills\` and are available to Claude Code, Antigravity, and compatible agents. The methodology is **opt-in per session** — it does not activate automatically.
-
-To activate: invoke `/using-superpowers` at the start of a session. Each agent reads its own configuration for how to load the skill (Claude Code uses the `Skill` tool, Antigravity reads `.antigravity/workflows/using-superpowers.md`). Do not apply the methodology unless the user has activated it.
-
-**Instruction priority when active:** AGENTS.md / tool-specific config / direct user requests > Superpowers skills > default agent behavior.
-
----
-
-## Where to find agent-specific extensions
-
-This file is the shared baseline. Tool-specific overrides and personal context live in per-tool files:
-
-| Agent | Extension file | Notes |
-|---|---|---|
-| Claude | `.claude/CLAUDE.md` | Claude-specific behavior, coaching shape, personal context. Gitignored. |
-| Gemini | `.gemini/GEMINI.md` | Same purpose for Gemini. Gitignored. |
-| Antigravity | `.gemini/GEMINI.md` | Shares Gemini's context rules, but uses `.antigravity/workflows/` for its internal workflows. Persistent memory lives in global `AppData`, requiring manual sync across machines. |
-| Other tools (Cursor, Codex, etc.) | TBD | Set up if and when used. |
-
-If your tool has an extension file, read it after this one. If it doesn't, this file is sufficient.
-
-Session debriefs are written to `.claude/sessions/` — the shared session log directory used by all agents. Each session log is gitignored and captures internal context, not public documentation.
+This file is the shared baseline. Tool-specific behavior and personal context live in gitignored per-tool files: `.claude/CLAUDE.md` (Claude) and `.gemini/GEMINI.md` (Gemini / Antigravity). Read your tool's file after this one if it exists. Session debriefs live in `.claude/sessions/` (gitignored).
 
 ---
 

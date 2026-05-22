@@ -29,7 +29,7 @@
 
 Three layers: Bronze (raw), Silver (cleaned), Gold (analytics).
 
-- Bronze ingests Steam JSON and IGDB metadata, both schema-resilient. Steam's schema drifts every few months; the loader doesn't care.
+- Bronze ingests Steam JSON (scraped via a custom multi-threaded client) and IGDB metadata, both schema-resilient. Steam's schema drifts every few months; the loader doesn't care.
 - Silver does the heavy work: an 8-step text-cleaning chain, then VADER (rule-based lexicon that extracts sentiment polarity) over the cleaned body, gated on `isVaderEligible` and `hasCredibleText` so the scorer never sees obvious junk reviews. Bridge tables in Silver handle the many-to-many relationships between games and igdb metadata.
 - Gold rolls up to game grain with influence-weighting and shrinkage, so a 5-review indie does not outrank a 50,000-review behemoth. IGDB aggregated ratings get the same treatment (formulas in [`scoring-model.md`](Docs/architecture/scoring-model.md)).
 
@@ -37,11 +37,18 @@ After the first full load, the reviews pipeline is incremental. Change Data Feed
 
 Three ADRs cover the key decisions that shaped the pipeline:
 
-| ADR | One-line gist |
+| ADR | Gist |
 |---|---|
 | [adr-001](Docs/adrs/adr-001-dimensional-gold-over-array-obt.md) | Dimensional Gold over array-OBT. Fabric's SQL endpoint cannot surface complex types, so the model goes Kimball-aligned star schema all the way down. |
 | [adr-002](Docs/adrs/adr-002-cdf-incremental-audit-warehouse.md) | CDF incremental with a separate audit warehouse. Watermark reads do not spin up a Spark cluster, and the audit plane runs observability off-Spark. |
 | [adr-009](Docs/adrs/adr-009-review-scraper-bronze-loader-decoupling.md) | Steam reviews are scraped and stored in OneLake as audited batches. A decoupled pipeline processes new additions at regular intervals. |
+
+Two more cover performance tuning at 71M-review scale:
+
+| ADR | Gist |
+|---|---|
+| [adr-005](Docs/adrs/adr-005-adaptive-salting.md) | Adaptive salting on hot keys. Counter-Strike's 2.5M reviews stall the `GROUP BY gameKey` shuffle, so salt kicks in only above a tunable threshold and cold keys pay nothing. |
+| [adr-006](Docs/adrs/adr-006-liquid-clustering.md) | Liquid clustering over Hive partitioning and Z-Order. Cluster keys align to the dominant MERGE and read predicates; OPTIMIZE stays incremental instead of rewriting every file. |
 
 *9 ADRs total in [`Docs/adrs/`](Docs/adrs/), with 11 minor calls in [`decisions.md`](Docs/decisions.md).*
 
@@ -60,36 +67,38 @@ Three finding docs walk through what surfaced:
 - [`where-the-gap-grows.md`](Docs/findings/where-the-gap-grows.md): the gap grows monotonically with audience size. In games with 100k+ reviews, the two letter grades disagree on 71% of titles.
 - [`what-sentimentrating-reveals.md`](Docs/findings/what-sentimentrating-reveals.md): the smoothed text-sentiment leaderboard reads cozy and short-narrative (A Short Hike 96.75, Tiny Glade 96.21), with the same shape at theme and genre grain.
 
-*6 findings total, in [`Docs/findings/`](Docs/findings/).*
+*6 findings total, in [`Docs/findings/`](Docs/findings/). I heartily recommend [`funny.md`](Docs/findings/funny.md) and [`edge-cases.md`](Docs/findings/edge-cases.md) for some curated gems.*
+
+The Gold serving views are exported as spreadsheets under [`Docs/exports/02_Analytics/`](Docs/exports/02_Analytics/) (game scores plus genre / theme / platform aggregates).
 
 ## Repository layout
 
-```
+<pre>
 Altanwir/
 ├── README.md
 ├── Docs/
 │   ├── architecture/
-│   │   ├── overview.md              # full writeup + diagram + field-lineage table
-│   │   └── scoring-model.md         # VADER eligibility, influence score, shrinkage
-│   ├── adrs/                        # 9 ADRs (Context / Decision / Rationale / Trade-offs)
-│   ├── decisions.md                 # 11 lightweight calls that didn't need a full ADR
-│   ├── findings/                    # 6 analytical writeups
-│   └── quirks/                      # implementation quirks and workarounds (Fabric, Spark, VADER)
+│   │   ├── <a href="Docs/architecture/overview.md">overview.md</a>              # full writeup + diagram + field-lineage table
+│   │   └── <a href="Docs/architecture/scoring-model.md">scoring-model.md</a>         # VADER eligibility, influence score, shrinkage
+│   ├── <a href="Docs/adrs/">adrs/</a>                        # 9 ADRs (Context / Decision / Rationale / Trade-offs)
+│   ├── <a href="Docs/decisions.md">decisions.md</a>                 # 11 lightweight calls that didn't need a full ADR
+│   ├── <a href="Docs/findings/">findings/</a>                    # 6 analytical writeups
+│   └── <a href="Docs/quirks/">quirks/</a>                      # implementation quirks and workarounds (Fabric, Spark, VADER)
 ├── DuckDB/
-│   ├── README.md
-│   ├── agentic-analytics.md         # the agent-loop methodology
-│   └── init.duckdb.sql              # harness over Gold parquet exports
+│   ├── <a href="DuckDB/README.md">README.md</a>
+│   ├── <a href="DuckDB/agentic-analytics.md">agentic-analytics.md</a>         # the agent-loop methodology
+│   └── <a href="DuckDB/init.duckdb.sql">init.duckdb.sql</a>              # harness over Gold parquet exports
 ├── Fabric/                          # Spark notebooks + Data Factory pipelines
-│   ├── NB_Steam_Reviews.Notebook/   # API extractor (plain Jupyter, not Spark)
-│   ├── NB_Steam_Reviews_Bronze.Notebook/
-│   ├── NB_Steam_Reviews_Silver.Notebook/
-│   ├── NB_Steam_Reviews_Gold.Notebook/
-│   ├── NB_Game_Scores_Gold.Notebook/
-│   ├── NB_1_Bronze.Notebook/        # IGDB loader
-│   ├── NB_2_Silver.Notebook/        # IGDB dim + bridge build
+│   ├── <a href="Fabric/NB_Steam_Reviews.Notebook/notebook-content.py">NB_Steam_Reviews.Notebook/</a>   # threaded Steam scraper (API extractor, not Spark)
+│   ├── <a href="Fabric/NB_Steam_Reviews_Bronze.Notebook/notebook-content.py">NB_Steam_Reviews_Bronze.Notebook/</a>
+│   ├── <a href="Fabric/NB_Steam_Reviews_Silver.Notebook/notebook-content.py">NB_Steam_Reviews_Silver.Notebook/</a>
+│   ├── <a href="Fabric/NB_Steam_Reviews_Gold.Notebook/notebook-content.py">NB_Steam_Reviews_Gold.Notebook/</a>
+│   ├── <a href="Fabric/NB_Game_Scores_Gold.Notebook/notebook-content.py">NB_Game_Scores_Gold.Notebook/</a>
+│   ├── <a href="Fabric/NB_1_Bronze.Notebook/notebook-content.py">NB_1_Bronze.Notebook/</a>        # IGDB loader
+│   ├── <a href="Fabric/NB_2_Silver.Notebook/notebook-content.py">NB_2_Silver.Notebook/</a>        # IGDB dim + bridge build
 │   └── pl_*.DataPipeline/           # 4 orchestration pipelines
-└── Labs/                            # local prototyping (DuckDB, dbt, Fabric PoCs)
-```
+└── <a href="Labs/">Labs/</a>                            # local prototyping (DuckDB, dbt, Fabric PoCs)
+</pre>
 
 ## Tech stack
 
